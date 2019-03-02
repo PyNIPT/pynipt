@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-PyNSP (Python Neural-Signal Processing)
+PyNIPT (Python NeuroImaging Pipeline Tools)
 """
 from distutils.core import setup
 # from distutils.extension import Extension
@@ -10,27 +10,27 @@ import re, io
 
 __version__ = re.search(
     r'__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
-    io.open('pynsp/__init__.py', encoding='utf_8_sig').read()
+    io.open('pynipt/__init__.py', encoding='utf_8_sig').read()
     ).group(1)
 
 __author__ = 'SungHo Lee'
 __email__ = 'shlee@unc.edu'
 
-# cmdclass = {'build_ext': build_ext}
-# ext_modules = [Extension("pynsp.cython.sampen", [ "pynsp/cython/sampen.pyx" ])]
-
-setup(name='PyNSP',
+setup(name='PyNIPT',
       version=__version__,
-      description='Python Neural-Signal Processing',
+      description='Python NeuroImaging Pipeline Tools',
       author=__author__,
       author_email=__email__,
       url=None,
       license='GNLv3',
       packages=find_packages(),
-      #install_requires=['',
-      #                  ],
-      scripts=['pynsp/bin/pynsp',
-              ],
+      install_requires=['miresi',
+                        'paralexe',
+                        'pandas',
+                        'tqdm',
+                       ],
+      # scripts=['',
+      #         ],
       classifiers=[
             # How mature is this project? Common values are
             #  3 - Alpha
@@ -47,8 +47,9 @@ setup(name='PyNSP',
             # Specify the Python version you support here. In particular, ensure
             # that you indicate whether you support Python 2, Python 3 or both
             'Programming Language :: Python :: 2.7',
+            'Programming Language :: Python :: 3.7',
       ],
-      keywords = 'Python Neural-Signal Processing'
+      keywords = 'Python NeuroImaging Pipeline Tools'
 
      )
 
