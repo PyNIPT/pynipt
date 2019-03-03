@@ -3,9 +3,7 @@ import sys
 from .ui import Bucket
 from .ui import InterfaceBuilder
 from .ui import PipelineBuilder
-# from .ui import Pipeline
 from .ui import Processor
-from .ui.pipeline import Pipeline
 
 from .core.base import dc as __dc, \
     config as __config, \
@@ -85,6 +83,8 @@ if not os.path.exists(__default_interface_path):
 # download default pipeline from developer's gist
 if not os.path.exists(__default_pipeline_path):
     __download_plugin(__pipe_plugin_url, __default_pipeline_path)
+
+from .ui.pipeline import Pipeline
 
 __all__ = ['Bucket',
            'Processor',
