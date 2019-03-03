@@ -6,4 +6,5 @@ __pycache__/*
 deploy/local.properties
 ui/styles/*.css
 dist
+build
 *.pid
