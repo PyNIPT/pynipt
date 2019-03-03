@@ -6,54 +6,55 @@ import sys
 import logging
 from collections import namedtuple, OrderedDict
 if sys.version_info[0] == 3:
-    import configparser
+    # import configparser
     from importlib import reload
 else:
-    import ConfigParser as configparser
+    # import ConfigParser as configparser
     from imp import reload
+from .config import config
 
 
-#%% Set config
-def create_config_file(cfg, path):
-
-    # Config for Pandas Dataframe
-    cfg.add_section('Display')
-    cfg.set('Display', 'Max_Row', 100)
-    cfg.set('Display', 'Max_Colwidth', 100)
-
-    # Config for Dataset structure
-    cfg.add_section('Dataset structure')
-    cfg.set('Dataset structure', 'dataset_path', 'Data')
-    cfg.set('Dataset structure', 'working_path', 'Processing')
-    cfg.set('Dataset structure', 'results_path', 'Results')
-    cfg.set('Dataset structure', 'masking_path', 'Mask')
-    cfg.set('Dataset structure', 'temporary_path', 'Temp')
-    cfg.set('Dataset structure', 'ignore', '.DS_Store')
-
-    # Config for Plugin
-    cfg.add_section('Plugin')
-    __plugin_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'plugin')
-    cfg.set('Plugin', 'plugin_path', __plugin_path)
-    cfg.set('Plugin', 'interface_plugin_path', os.path.join(__plugin_path, 'interface_default.py'))
-    cfg.set('Plugin', 'pipeline_plugin_path', os.path.join(__plugin_path, 'pipeline_default.py'))
-
-    # Computing and processing related
-    cfg.add_section('Preferences')
-    cfg.set('Preferences', 'daemon_refresh_rate', '0.5')
-    cfg.set('Preferences', 'number_of_thread', '4')
-
-    with open(path, 'w') as configfile:
-        cfg.write(configfile)
-
-
-#%% Load config
-cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
-config = configparser.RawConfigParser()
-
-if os.path.exists(cfg_path):
-    config.read(cfg_path)
-else:
-    create_config_file(config, cfg_path)
+# #%% Set config
+# # def create_config_file(cfg, path):
+# #
+# #     # Config for Pandas Dataframe
+# #     cfg.add_section('Display')
+# #     cfg.set('Display', 'Max_Row', 100)
+# #     cfg.set('Display', 'Max_Colwidth', 100)
+# #
+# #     # Config for Dataset structure
+# #     cfg.add_section('Dataset structure')
+# #     cfg.set('Dataset structure', 'dataset_path', 'Data')
+# #     cfg.set('Dataset structure', 'working_path', 'Processing')
+# #     cfg.set('Dataset structure', 'results_path', 'Results')
+# #     cfg.set('Dataset structure', 'masking_path', 'Mask')
+# #     cfg.set('Dataset structure', 'temporary_path', 'Temp')
+# #     cfg.set('Dataset structure', 'ignore', '.DS_Store')
+# #
+# #     # Config for Plugin
+# #     cfg.add_section('Plugin')
+# #     __plugin_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'plugin')
+# #     cfg.set('Plugin', 'plugin_path', __plugin_path)
+# #     cfg.set('Plugin', 'interface_plugin_path', os.path.join(__plugin_path, 'interface_default.py'))
+# #     cfg.set('Plugin', 'pipeline_plugin_path', os.path.join(__plugin_path, 'pipeline_default.py'))
+# #
+# #     # Computing and processing related
+# #     cfg.add_section('Preferences')
+# #     cfg.set('Preferences', 'daemon_refresh_rate', '0.5')
+# #     cfg.set('Preferences', 'number_of_thread', '4')
+# #
+# #     with open(path, 'w') as configfile:
+# #         cfg.write(configfile)
+# #
+# #
+# # #%% Load config
+# # cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
+# # config = configparser.RawConfigParser()
+# #
+# # if os.path.exists(cfg_path):
+# #     config.read(cfg_path)
+# # else:
+# #     create_config_file(config, cfg_path)
 
 dataclasses = ['dataset_path', 'working_path', 'results_path', 'masking_path', 'temporary_path']
 dc = [config.get('Dataset structure', c) for c in dataclasses]
@@ -425,6 +426,12 @@ class ProcessorBase(object):
         # for debug
         self._log_path = None
         self._logger = None
+
+        # check existing folders
+        self._existing_step_dir = dict()
+        self._existing_report_dir = dict()
+        self._existing_mask_dir = dict()
+        self._existing_report_dir = dict()
 
     @property
     def step_code_pattern(self):
