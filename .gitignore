@@ -5,6 +5,8 @@ __pycache__/*
 .idea/*
 deploy/local.properties
 ui/styles/*.css
+PyNIPT.egg-info
+PyNIPT.egg-info/*
 dist
 build
 *.pid
