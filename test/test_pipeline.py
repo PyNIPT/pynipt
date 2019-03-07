@@ -1,7 +1,4 @@
 # The script to check the Pipeline class is functioning.
-import sys
-paralexe_module = '/Users/shlee419/Projects/Released/paralexe'
-sys.path.append(paralexe_module)
 
 import pynipt as pn
 prjpath = '/Users/shlee419/Projects/dataset/3Drat_fMRI_1ses'
