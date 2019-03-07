@@ -884,9 +884,9 @@ class InterfaceHandler(InterfaceBase):
                         self.logging('warn', exc_msg, method=method_name)
                 fn, fext = split_ext(filename)
                 if prefix is not None:
-                    fn = '{}_{}'.format(prefix, fn)
+                    fn = '{}{}'.format(prefix, fn)
                 if suffix is not None:
-                    fn = '{}_{}'.format(fn, suffix)
+                    fn = '{}{}'.format(fn, suffix)
                 filename = '.'.join([fn, fext])
                 if ext is not None:
                     if isinstance(ext, str):
@@ -936,22 +936,28 @@ class InterfaceHandler(InterfaceBase):
                 if l == label:
                     if self._input_method == 0:
                         for p, fn in v:
+                            fn_woext, old_ext = split_ext(fn)
                             if prefix is not None:
-                                fn = '{}{}'.format(prefix, fn)
+                                fn_woext = '{}{}'.format(prefix, fn_woext)
                             if suffix is not None:
-                                fn = '{}{}'.format(fn, suffix)
+                                fn_woext = '{}{}'.format(fn_woext, suffix)
                             if ext is not None:
-                                fn = '{}.{}'.format(fn, ext)
+                                fn = '{}.{}'.format(fn_woext, ext)
+                            else:
+                                fn = '{}.{}'.format(fn_woext, old_ext)
                             self._output_filter.append((p, fn))
                     elif self._input_method == 1: # input_method=1 has only one master output
                         if isinstance(v, tuple) and len(v) == 2:
                             p, fn = v
+                            fn_woext, old_ext = split_ext(fn)
                             if prefix is not None:
-                                fn = '{}{}'.format(prefix, fn)
+                                fn_woext = '{}{}'.format(prefix, fn_woext)
                             if suffix is not None:
-                                fn = '{}{}'.format(fn, suffix)
+                                fn_woext = '{}{}'.format(fn_woext, suffix)
                             if ext is not None:
-                                fn = '{}.{}'.format(fn, ext)
+                                fn = '{}.{}'.format(fn_woext, ext)
+                            else:
+                                fn = '{}.{}'.format(fn_woext, old_ext)
                             self._output_filter.append((p, fn))
                         else:
                             exc_msg = 'unexpected error, might be caused by incorrect output_set.'

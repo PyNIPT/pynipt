@@ -31,6 +31,8 @@ def display_html(message):
 plugin_path = __config.get('Plugin', 'pipeline_plugin_path')
 _default_interface_path = __config.get('Plugin', 'interface_plugin_path')
 _default_pipeline_path = __config.get('Plugin', 'pipeline_plugin_path')
+_verbose_option = bool(__config.get('Preferences', 'verbose'))
+_logging_option = bool(__config.get('Preferences', 'logging'))
 
 
 def plugin_interface(path):
@@ -56,12 +58,38 @@ pipelines = plugin_pipeline(_default_pipeline_path)
 
 
 class Pipeline(object):
-    """ Pipeline handler
+    """ Major user interface to processing pipeline.
+    PyNIPT main package does not contain any interface commands or pipeline packages in source code.
+    All the interface commands and pipeline packages need to be installed by plugin.
 
-    This class is the major features of PyNIT project (for most of general users)
+    The default example plugin scripts will be downloaded on your configuration folder
+    (under .pynipt/plugin in user's home directory)
+
+    Examples:
+        Usage example to select pipeline
+
+        Import module and initiate pipeline object
+        >>> import pynipt as pn
+        >>> pipe = pn.Pipeline('/project/dataset/path')
+        The installed pipeline plugin will be listed here
+
+        >>> pipe.howto(0)       # print help for the 0th pipeline package if any
+        The help document will be printed here if the verbose option is True in user's config file
+
+        Select 0th pipeline package
+        >>> pipe.select_package(0)
+        The available pipelines in the package will be listed here if the verbose option is True in user's config file
+
+        Run 0th pipeline in selected package
+        >>> pipe.run(0)
+        The description of the pipeline will be printed here if the verbose option is True in user's config file
+
+        Check the progression bar of running pipeline
+        >>> pipe.check_progression()
+
     You can either use default pipeline packages we provide or load custom designed pipelines
     """
-    def __init__(self, path, logger=True, **kwargs):
+    def __init__(self, path, **kwargs):
         """Initiate class
 
         :param path:    dataset path
@@ -73,28 +101,32 @@ class Pipeline(object):
         # Define default attributes
         self._bucket = Bucket(path, **kwargs)
         self._msi = self._bucket.msi
-        self._interface = None
-        self._n_threads = None
+        self._interface = None                  # place holder for interface plugin
+        self._n_threads = None                  # place holder to provide into Interface class
 
-        self._pipeobj = pipelines
-        self._logger = logger
+        self._pipeobj = pipelines               # pipeline plugin will be attached to here
         self.detach_package()
 
-        self._progressbar = None
+        self._progressbar = None                # to store tqdm object
 
         if 'n_threads' in kwargs.keys():
             self._n_threads = kwargs['n_threads']
         else:
-            from .processor import default_n_threads
+            from .processor import default_n_threads        # default is saved on config file
             self._n_threads = default_n_threads
+        if 'logging' in kwargs.keys():
+            self._logger = kwargs['logging']
+        else:
+            self._logger = _logging_option
 
-        # Print out project summary
-        print(self._bucket.summary)
+        if _verbose_option is True:
+            # Print out project summary
+            print(self._bucket.summary)
 
-        # Print out installed (available) pipeline packages
-        avails = ["\t{} : {}".format(*item) for item in self.installed_packages.items()]
-        output = ["\nList of installed pipeline packages:"] + avails
-        print("\n".join(output))
+            # Print out installed (available) pipeline packages
+            avails = ["\t{} : {}".format(*item) for item in self.installed_packages.items()]
+            output = ["\nList of installed pipeline packages:"] + avails
+            print("\n".join(output))
 
     def detach_package(self):
         """ Detach selected pipeline package
@@ -110,15 +142,13 @@ class Pipeline(object):
         list_of_pipes = dict(zip(range(n_pipe), pipes))
         return list_of_pipes
 
-    def select_package(self, package_id, verbose=False, listing=True, **kwargs):
+    def select_package(self, package_id, **kwargs):
         """Initiate package
 
         :param package_id:  Id code for package to initiate
-        :param verbose:     Printing out the help of initiating package
         :param kwargs:      Input parameters for initiating package
         :param tag:         Tag on package folder
         :type package_id:   int
-        :type verbose:      bool
         :type kwargs:       key=value pairs
         """
         self._bucket.update()
@@ -142,10 +172,9 @@ class Pipeline(object):
         else:
             raise Exception
 
-        if verbose:
+        if _verbose_option is True:
+            print('Description about this package:\n')
             print(self.selected.__init__.__doc__)
-
-        if listing: # TODO: If listing is True
             print("The pipeline package '{}' is selected.\n"
                   "Please double check if all parameters are "
                   "correctly provided before run this pipline".format(package_id))
@@ -206,9 +235,8 @@ class Pipeline(object):
     def howto(self, idx):
         """ Print help document for package
 
-        :param idx: index of available pipeline package
-        :type idx: int
-        :return:
+        Args:
+            idx(int):       index of available pipeline package
         """
         if isinstance(idx, int):
             idx = self.installed_packages[idx]
@@ -216,28 +244,19 @@ class Pipeline(object):
             command = 'print(self._pipeobj.{}.__init__.__doc__)'.format(idx)
             exec(command)
 
-    def run(self, idx, verbose=True, **kwargs):
-        """Execute selected pipeline
+    def run(self, idx, **kwargs):
+        """ Execute selected pipeline
 
-        :param idx: index of available pipeline
-        :type idx: int
-        :return:
+        Args:
+            idx(int):       index of available pipeline package
+            **kwargs:       key:value pairs of parameters for this pipeline
         """
         self.set_param(**kwargs)
-        if verbose is True:
+        if _verbose_option is True:
             exec('print(self.selected.pipe_{}.__doc__)'.format(self.selected.installed_pipelines[idx]))
         exec('self.selected.pipe_{}()'.format(self.selected.installed_pipelines[idx]))
 
-    def get_interface_object(self):
-        if self._interface:
-            return self._interface
-        else:
-            raise Exception
-
-    def get_bucket_object(self):
-        return self._bucket
-
-    def plugin(self, interface=None, pipeline=None, listing=True):
+    def plugin(self, interface=None, pipeline=None):
         """
 
         Args:
@@ -247,16 +266,18 @@ class Pipeline(object):
         Returns:
 
         """
-        if interface is not None: # TODO: interface is replaced while pipeline is added in
+        if interface is not None:   # TODO: interface is replaced with this command
             global Interface
             Interface = plugin_interface(interface)
 
-        if pipeline is not None:
+        if pipeline is not None:    # TODO: pipeline is added up with this command
             global pipelines
             pipelines = plugin_pipeline(pipeline)
-            avails = ["\t{} : {}".format(*item) for item in self.installed_packages.items()]
-            output = ["\nList of installed pipeline packages:"] + avails
-            print("\n".join(output))
+
+            if _verbose_option is True:
+                avails = ["\t{} : {}".format(*item) for item in self.installed_packages.items()]
+                output = ["\nList of installed pipeline packages:"] + avails
+                print("\n".join(output))
 
     @property
     def bucket(self):

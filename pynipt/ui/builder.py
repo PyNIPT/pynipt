@@ -24,13 +24,16 @@ class InterfaceBuilder(InterfaceHandler):
     Attributes:
         path:
     """
-    def __init__(self, processor):
+    def __init__(self, processor, n_threads=None):
         super(InterfaceBuilder, self).__init__()
         self._parse_info_from_processor(processor)
         self._init_attr_for_inspection()
         self._init_attr_for_execution()
-        # Initiate scheduler
-        self._schd = Scheduler(n_threads=processor.scheduler_param['n_threads'])
+        if n_threads is None:
+            # Initiate scheduler
+            self._schd = Scheduler(n_threads=processor.scheduler_param['n_threads'])
+        else:
+            self._schd = Scheduler(n_threads=n_threads)
 
     def init_step(self, title, suffix=None, idx=None, subcode=None, mode='processing'):
         """initiate step directory, this includes generating step code and creating the directory
@@ -138,12 +141,14 @@ class InterfaceBuilder(InterfaceHandler):
         and [subject_session] respectively, this cases, extension need to be specified.
 
         Args:
-            label:                  output place-holder for command template,
+            label(str):             output place-holder for command template,
                                     'output' will help to prevent repetition of finished step
+            prefix(str):
+            suffix(str):
             modifier(dict or str):  key(find):value(replace) or file(folder)name
                                     in case the input method was set to 1,
                                     user can specify file or folder name of output
-            ext(str):               extension if it need to be changed. If False, extension will be removed.
+            ext(str or False):      extension if it need to be changed. If False, extension will be removed.
         """
         run_order = self._update_run_order()
         # add current step code to the step list

@@ -1,3 +1,5 @@
+# The script for checking the method in the InterfaceBuilder class is functioning
+
 import pynipt as pn
 
 prjpath = '/Users/shlee419/Projects/dataset/3Drat_fMRI_2ses_2runs'

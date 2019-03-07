@@ -33,8 +33,10 @@ def create_config_file(cfg, path):
 
     # Computing and processing related
     cfg.add_section('Preferences')
-    cfg.set('Preferences', 'daemon_refresh_rate', '0.5') # TODO: no more needed
+    cfg.set('Preferences', 'daemon_refresh_rate', '0.5')
     cfg.set('Preferences', 'number_of_thread', '4')
+    cfg.set('Preferences', 'verbose', True)
+    cfg.set('Preferences', 'logging', True)
 
     with open(path, 'w') as configfile:
         cfg.write(configfile)
@@ -52,7 +54,6 @@ def restore_config():
 
 
 #%% Load config
-# cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
 cfg_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'pyniptrc')
 config = configparser.RawConfigParser()
 
