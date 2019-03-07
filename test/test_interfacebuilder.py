@@ -44,3 +44,15 @@ for label in step._input_set.keys():
 
 #%% reset
 proc.clear()
+
+
+#%%
+import shlex
+from subprocess import Popen, PIPE
+proc = Popen(shlex.split('ls'),
+                               # stdin=PIPE,   # Executor not use stdin, activate later when it becomes available
+                               stdin=None,
+                               stdout=PIPE,
+                               stderr=PIPE)
+
+stdout, stderr = proc.communicate()

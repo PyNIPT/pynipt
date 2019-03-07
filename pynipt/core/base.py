@@ -602,21 +602,18 @@ class ProcessorBase(object):
                 if len(filtered) != 0:
                     columns = filtered.df.columns
                     for i, k in enumerate(keys):
-                        # self._avail_att.append(k)
                         setattr(self, k, self._sort_params(filtered.df[columns[i]]))
                 else:
                     # If nothing, take information from dataset
                     dataset = self.bucket(0)
                     columns = dataset.df.columns
                     for i, k in enumerate(self.bucket.param_keys[0]):
-                        # self._avail_att.append(k)
                         setattr(self, k, self._sort_params(dataset.df[columns[i]]))
             else:
                 self._pre_idx = idx
                 dataset = self.bucket(idx)
                 columns = dataset.df.columns
                 for i, k in enumerate(self.bucket.param_keys[idx]):
-                    # self._avail_att.append(k)
                     setattr(self, k, self._sort_params(dataset.df[columns[i]]))
         else:
             # no data is found in given dataclass
@@ -624,7 +621,6 @@ class ProcessorBase(object):
             dataset = self.bucket(0)
             columns = dataset.df.columns
             for i, k in enumerate(self.bucket.param_keys[0]):
-                # self._avail_att.append(k)
                 setattr(self, k, self._sort_params(dataset.df[columns[i]]))
 
     def _parse_executed_subdir(self):
@@ -818,7 +814,7 @@ class InterfaceBase(object):
     def _wait_my_turn(self, run_order, message=None, method=None):
         previous_run_order = run_order - 1
         loop = True
-        while loop == True:
+        while loop is True:
             if self.is_initiated():
                 if previous_run_order in self._processed_run_order:
                     if not self._daemons[previous_run_order].is_alive():

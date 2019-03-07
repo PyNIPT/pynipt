@@ -288,7 +288,7 @@ class Interface(Processor):
         itf.set_var(label='thread', value=self._n_threads)
         itf.set_output(label='output', suffix='_', ext=False)
         itf.set_cmd("antsRegistrationSyN.sh -f *[ref] -m *[input] -o *[output] -n *[thread]")
-        itf.check_output(suffix='_Warped', ext='nii.gz')
+        itf.check_output(suffix='Warped', ext='nii.gz')
         itf.run()
 
     def ants_ApplySpatialNorm(self, input_path, ref_path,
@@ -319,6 +319,7 @@ class Interface(Processor):
         itf.set_static_input(label='tfmat', input_path=ref_path,
                              idx=0, filter_dict=dict(ext='mat'))
         itf.set_output(label='output')
-        itf.set_cmd("WarpTimeSeriesImageMultiTransform 4 *[input] *[output] -R *[base] [tfmorph] [tfmat]")
+        itf.set_cmd("WarpTimeSeriesImageMultiTransform 4 *[input] *[output] -R "
+                    "*[base] *[tfmorph] *[tfmat]")
         itf.check_output()
         itf.run()
