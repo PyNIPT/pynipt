@@ -33,7 +33,7 @@ def create_config_file(cfg, path):
 
     # Computing and processing related
     cfg.add_section('Preferences')
-    cfg.set('Preferences', 'daemon_refresh_rate', '0.5')
+    cfg.set('Preferences', 'daemon_refresh_rate', '0.5') # TODO: no more needed
     cfg.set('Preferences', 'number_of_thread', '4')
 
     with open(path, 'w') as configfile:
@@ -41,7 +41,8 @@ def create_config_file(cfg, path):
 
 
 def restore_config():
-    cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
+    # cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
+    cfg_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'pyniptrc')
     if os.path.exists(cfg_path):
         dirname, filename = os.path.split(cfg_path)
         shutil.copy(cfg_path, os.path.join(dirname, '{}_{}'.format(filename, date.today().strftime("%y%m%d"))))
@@ -51,7 +52,8 @@ def restore_config():
 
 
 #%% Load config
-cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
+# cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
+cfg_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'pyniptrc')
 config = configparser.RawConfigParser()
 
 if not os.path.exists(cfg_path):

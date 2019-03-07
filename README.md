@@ -1,5 +1,5 @@
 # PyNIPT (Python NeuroImage Pipeline Tool)
-### Version: 0.0.1a
+### Version: 0.0.1
 
 - Easy to use a plug-in based pipeline tool. This tool helps to handle multiple data processing streams with well-organized manner.
 

@@ -404,12 +404,16 @@ class ProcessorHandler(ProcessorBase):
         avail_codes = string.ascii_uppercase
 
         # assign existing_dir into local instance
-        if mode is 'processing':
-            existing_dir = self._existing_step_dir
-        elif mode is 'reporting':
-            existing_dir = self._existing_report_dir
-        elif mode is 'masking':
-            existing_dir = self._existing_mask_dir
+        # if mode is 'processing':
+        #     existing_dir = self._existing_step_dir
+        # elif mode is 'reporting':
+        #     existing_dir = self._existing_report_dir
+        # elif mode is 'masking':
+        #     existing_dir = self._existing_mask_dir
+        if mode in ['processing', 'reporting', 'masking']:
+            existing_dir = dict(list(self._existing_step_dir.items()) \
+                                + list(self._existing_mask_dir.items()) \
+                                + list(self._existing_report_dir.items()))
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
             self.logging('warn', exc_msg)
@@ -439,12 +443,14 @@ class ProcessorHandler(ProcessorBase):
 
         # if no folder created so far
         if len(existing_dir.keys()) == 0:
+            if subcode is None:
+                subcode = 0
             if idx is None:
                 # the code for the very first step will be 010
-                new_step_code = '010'
+                new_step_code = '01{}'.format(subcode)
             else:
                 # if idx are given, then use it
-                new_step_code = "{}0".format(str(idx).zfill(2))
+                new_step_code = "{}{}".format(str(idx).zfill(2), subcode)
         else:
             # parse step code from list of executed steps
             existing_codes = sorted(existing_dir.keys())
@@ -479,7 +485,10 @@ class ProcessorHandler(ProcessorBase):
                     new_step_idx = idx
                     if len(duplicated_idx_steps) == 0:
                         # there is no duplicated index
-                        new_substep_code = 0
+                        if subcode is not None:
+                            new_substep_code = subcode
+                        else:
+                            new_substep_code = 0
                     else:
                         # there is duplicated index, check the sub-step code
                         if subcode is not None:
@@ -520,6 +529,11 @@ class ProcessorHandler(ProcessorBase):
                 self.msi.mkdir(self.report_path)
                 self.logging('debug', 'Folder:[{}] is created on [{}] class'.format(self.label, dc[2]))
             abspath = self.msi.path.join(self.report_path, new_step_dir)
+        elif mode is 'masking':
+            if not self.msi.path.exists(self.mask_path):
+                self.msi.mkdir(self.mask_path)
+                self.logging('debug', 'Folder:[{}] is created on [{}] class'.format(self.label, dc[2]))
+            abspath = self.msi.path.join(self.mask_path, new_step_dir)
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
             self.logging('warn', exc_msg)
@@ -585,6 +599,10 @@ class ProcessorHandler(ProcessorBase):
             step_dir = self._get_report_dir(step_code)
             step_path = self.msi.path.join(self.report_path,
                                            step_dir)
+        elif mode is 'masking':
+            step_dir = self._get_mask_dir(step_code)
+            step_path = self.msi.path.join(self.mask_path,
+                                           step_dir)
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
             self.logging('warn', exc_msg)
@@ -623,271 +641,391 @@ class InterfaceHandler(InterfaceBase):
         if run_order != 0:
             self.logging('warn', 'incorrect order, init_step must be the first method to be executed.',
                          method='init_step')
-        loop = True
-        while loop is True:
-            if self.step_code == self._procobj._waiting_list[0]:
-                loop = False
+
+        if len(self._procobj._waiting_list) is 0:
+            # the step_code exists in the processed_list, so no need to wait
+            self._step_processed = True
+        else:
+            loop = True
+            while loop is True:
+                if self.step_code == self._procobj._waiting_list[0]:
+                        loop = False
 
         self._procobj.bucket.update()
-        self._procobj.update_attributes(mode_idx)
+        try:
+            self._procobj.update_attributes(mode_idx)
+        except:
+            self._procobj.update_attributes(1)
         self._report_status(run_order)
 
-    def _set_input(self, run_order, label, input_path, fname_filter=None, method=0, mask=False):
+    def _set_input(self, run_order, label, input_path, filter_dict,
+                   method, idx, mask):
         """hidden layer to run on daemon"""
+        if self._step_processed is True:
+            pass
+        else:
+            self._wait_my_turn(run_order, '{} label assigned to input_path [{}]'.format(label, input_path), method='set_input')
 
-        self._wait_my_turn(run_order, '{}-{}'.format(label, input_path), method='set_input')
+            method_name = 'set_input'
+            num_inputset = len(self._input_set.keys())
 
-        method_name = 'set_input'
-        num_inputset = len(self._input_set.keys())
-
-        if num_inputset > 0:
-            if self._input_method != method:
-                exc_msg = 'input method is not match with prior set input(s).'
-                self.logging('warn', exc_msg, method=method_name)
-            else:
-                if label in self._input_set.keys():
-                    exc_msg = 'the label have been assigned already.'
+            if num_inputset > 0:
+                if self._input_method != method:
+                    exc_msg = 'input method is not match with prior set input(s).'
                     self.logging('warn', exc_msg, method=method_name)
-        else:
-            self._input_method = method
-            self._main_input = label
-
-        input_path = self._procobj.inspect_input(input_path, mask=mask)
-        if fname_filter is None:
-            fname_filter = dict()
-        else:
-            exc_msg = 'insufficient filename filter is used.'
-            if isinstance(fname_filter, dict):
-                for key in fname_filter.keys():
-                    if key not in self._bucket._fname_keys:
+                else:
+                    if label in self._input_set.keys():
+                        exc_msg = 'the label have been assigned already.'
                         self.logging('warn', exc_msg, method=method_name)
             else:
-                self.logging('warn', exc_msg, method=method_name)
+                self._input_method = method
+                self._main_input = label
 
-        if self._input_method == 0:
-            # use all single file as one input
-            if input_path in self._bucket.params[0].datatypes:
-                dset = self._bucket(0, datatypes=input_path, **fname_filter)
+            input_path = self._procobj.inspect_input(input_path, mask=mask)
+            if filter_dict is None:
+                filter_dict = dict()
             else:
-                if mask is True:
-                    dset = self._bucket(3, datatypes=input_path, **fname_filter)
+                exc_msg = 'insufficient filterdict.'
+                if isinstance(filter_dict, dict):
+                    for key in filter_dict.keys():
+                        if key not in self._bucket._fname_keys:
+                            self.logging('warn', exc_msg, method=method_name)
                 else:
-                    dset = self._bucket(1, pipelines=self._label, steps=input_path, **fname_filter)
-            if num_inputset == 0:
-                if self._multi_session is True:
-                    self._input_ref = {i:(finfo.Subject, finfo.Session) for i, finfo in dset}
-                else:
-                    self._input_ref = {i:(finfo.Subject, None) for i, finfo in dset}
-            self._input_set[label] = [finfo.Abspath for i, finfo in dset]
+                    self.logging('warn', exc_msg, method=method_name)
 
-        else:
-            if self._input_method == 1:
-
-                def worker(idx):
-                    self._procobj.update_attributes(idx)
-                    for i, sub in enumerate(self._procobj.subjects):
-                        if idx == 0 or idx == 3:
-                            dset = self._bucket(idx, datatypes=input_path, subjects=sub, **fname_filter)
-                        else:
-                            dset = self._bucket(1, pipelines=self._label, steps=input_path,
-                                                subjects=sub, **fname_filter)
-                        if num_inputset == 0:
-                            if self._multi_session is True:
-                                ses = []
-                                for j, finfo in dset:
-                                    ses.append(finfo.Session)
-                            else:
-                                ses = None
-                            self._input_ref[i] = (sub, ses)
-                        self._input_set[label].append(' '.join([finfo.Abspath for i, finfo in dset]))
-
-                # use all data in single subject as one input
-                if num_inputset == 0:
-                    self._input_ref = dict()
-                self._input_set[label] = []
-                if input_path in self._bucket.params[0].datatypes:
-                    worker(0)
-                else:
-                    # mask as input
-                    if mask is True:
-                        worker(3)
-                    # all other cases
-                    else:
-                        worker(1)
-
-            elif self._input_method == 2:
-
-                def worker(idx):
-                    self._procobj.update_attributes(idx)
-                    i = 0
-                    for sub in self._procobj.subjects:
-                        for ses in self._procobj.sessions:
-                            if idx == 0 or idx == 3:
-                                dset = self._bucket(idx, datatypes=input_path,
-                                                    subjects=sub, sessions=ses,
-                                                    **fname_filter)
-                            else:
-                                dset = self._bucket(idx, pipelines=self._label, step=input_path,
-                                                    subjects=sub, sessions=ses,
-                                                    **fname_filter)
-                            if num_inputset == 0:
-                                self._input_ref[i] = (sub, ses)
-                            self._input_set[label].append('\s'.join([finfo.Abspath for i, finfo in dset]))
-                            i += 1
-
-                # use all data in single subject and single session as one input
-                if self._multi_session is True:
-                    if num_inputset == 0:
-                        self._input_ref = dict()
-                    self._input_set[label] = []
+            if self._input_method == 0:
+                if idx is None:
+                    # point to point input and output match
                     if input_path in self._bucket.params[0].datatypes:
-                        worker(0)
+                        dset = self._bucket(0, datatypes=input_path, **filter_dict)
                     else:
                         if mask is True:
-                            worker(3)
+                            dset = self._bucket(3, datatypes=input_path, **filter_dict)
                         else:
-                            worker(1)
+                            dset = self._bucket(1, pipelines=self._label, steps=input_path, **filter_dict)
+                    if num_inputset == 0:
+                        if self._multi_session is True:
+                            self._input_ref = {i:(finfo.Subject, finfo.Session) for i, finfo in dset}
+                        else:
+                            self._input_ref = {i:(finfo.Subject, None) for i, finfo in dset}
+                    self._input_set[label] = [finfo.Abspath for i, finfo in dset]
                 else:
-                    exc_msg = '[method=2] can only be used for multi-session data'
-                    self.logging('warn', exc_msg, method=method_name)
+                    self._input_set[label] = list()
+                    if isinstance(idx, int):
+                        if input_path in self._bucket.params[0].datatypes:
+                            for sub in self._bucket.params[0].subjects:
+                                if self._multi_session:
+                                    for ses in self._bucket.params[0].sessions:
+                                        dset = self._bucket(0, datatypes=input_path,
+                                                            subjects=sub, sessions=ses,
+                                                            **filter_dict)
+                                        self._input_ref[len(self._input_set[label])] = (
+                                        dset[idx].Subject, dset[idx].Session)
+                                        self._input_set[label].append(dset[idx].Abspath)
+                                else:
+                                    dset = self._bucket(0, datatypes=input_path,
+                                                        subjects=sub, **filter_dict)
+                                    self._input_ref[len(self._input_set[label])] = (
+                                        dset[idx].Subject, None)
+                                    self._input_set[label].append(dset[idx].Abspath)
+                        else:
+                            if mask is True:
+                                for sub in self._bucket.params[3].subjects:
+                                    if self._multi_session:
+                                        for ses in self._bucket.params[3].sessions:
+                                            dset = self._bucket(3, datatypes=input_path,
+                                                                subjects=sub, sessions=ses,
+                                                                **filter_dict)
+                                            self._input_ref[len(self._input_set[label])] = (
+                                                dset[idx].Subject, dset[idx].Session)
+                                            self._input_set[label].append(dset[idx].Abspath)
+                                    else:
+                                        dset = self._bucket(3, datatypes=input_path,
+                                                            subjects=sub, **filter_dict)
+                                        self._input_ref[len(self._input_set[label])] = (
+                                            dset[idx].Subject, None)
+                                        self._input_set[label].append(dset[idx].Abspath)
+                            else:
+                                for sub in self._bucket.params[1].subjects:
+                                    if self._multi_session:
+                                        for ses in self._bucket.params[1].sessions:
+                                            dset = self._bucket(1, pipelines=self._label,
+                                                                steps=input_path,
+                                                                subjects=sub, sessions=ses,
+                                                                **filter_dict)
+                                            self._input_ref[len(self._input_set[label])] = (
+                                                dset[idx].Subject, dset[idx].Session)
+                                            self._input_set[label].append(dset[idx].Abspath)
+                                    else:
+                                        dset = self._bucket(1, pipelines=self._label,
+                                                            steps=input_path,
+                                                            subjects=sub,
+                                                            **filter_dict)
+                                        self._input_ref[len(self._input_set[label])] = (
+                                            dset[idx].Subject, None)
+                                        self._input_set[label].append(dset[idx].Abspath)
+                    else:
+                        self.logging('warn', 'inappropriate index for input data',
+                                     method=method_name)
+
+            elif self._input_method == 1:
+                # peer to point
+                if input_path in self._bucket.params[0].datatypes:
+                    dset = self._bucket(0, datatypes=input_path, **filter_dict)
+                else:
+                    if mask is True:
+                        dset = self._bucket(3, datatypes=input_path, **filter_dict)
+                    else:
+                        dset = self._bucket(1, pipelines=self._label, steps=input_path,
+                                            **filter_dict)
+                if num_inputset == 0:
+                    self._input_ref = dict()
+                self._input_ref[label] = filter_dict
+                self._input_set[label] = ' '.join([finfo.Abspath for i, finfo in dset])
             else:
                 exc_msg = 'method selection is out of range.'
                 self.logging('warn', exc_msg, method=method_name)
-        self._report_status(run_order)
+            self._report_status(run_order)
 
-    def _set_output(self, run_order, label, modifier, ext):
+    def _set_static_input(self, run_order, label, input_path, filter_dict, idx, mask):
         """hidden layer to run on daemon"""
-        self._wait_my_turn(run_order, '{}'.format(label), method='set_output')
-
-        method_name = 'set_output'
-        input_name = self._main_input
-        if self._main_input is None:
-            exc_msg = 'Cannot find input set, run set_input method first.'
-            self.logging('warn', exc_msg, method=method_name)
+        if self._step_processed is True:
+            pass
         else:
-            self._inspect_label(label, method_name)
+            self._wait_my_turn(run_order, '{}-{}'.format(label, input_path),
+                               method='set_static_input')
 
-        def check_modifier(filename):
-            if modifier is not None:
-                if isinstance(modifier, dict):
-                    for f, rep in modifier.items():
-                        filename = change_fname(filename, f, rep)
+            method_name = 'set_static_input'
+
+            if self._main_input is None:
+                exc_msg = 'Cannot find input set, run set_input method first.'
+                self.logging('warn', exc_msg, method=method_name)
+            else:
+                self._inspect_label(label, method_name)
+
+            if filter_dict is None:
+                filter_dict = dict()
+            else:
+                exc_msg = 'insufficient filterdict.'
+                if isinstance(filter_dict, dict):
+                    for key in filter_dict.keys():
+                        if key not in self._bucket._fname_keys:
+                            self.logging('warn', exc_msg, method=method_name)
                 else:
-                    exc_msg = 'wrong modifier!'
                     self.logging('warn', exc_msg, method=method_name)
-            if ext is not None:
-                if isinstance(ext, str):
-                    filename = change_ext(filename, ext)
-                elif ext == False:
-                    filename = remove_ext(filename)
-                else:
-                    exc_msg = 'wrong extension!'
-                    self.logging('warn', exc_msg, method=method_name)
-            return filename
 
-        # all possible input types, method 0, method 1, and method 2
-        self._output_set[label] = []
-        if self._input_method == 0:
-            for i, f_abspath in enumerate(self._input_set[input_name]):
-                subj, sess = self._input_ref[i]
+            if self._input_method is not 0:
+                exc_msg = 'static_input is only allowed to use for input_method=0'
+                self.logging('warn', exc_msg, method=method_name)
+            else:
+                self._input_set[label] = list()
+                for i, f_abspath in enumerate(self._input_set[self._main_input]):
+                    subj, sess = self._input_ref[i]
 
-                if sess is None:
-                    output_path = self.msi.path.join(self._path, subj)
-                else:
-                    output_path = self.msi.path.join(self._path, subj, sess)
+                    if input_path in self._bucket.params[0].datatypes:
+                        if sess is None:
+                            dset = self._bucket(0, datatypes=input_path,
+                                                subjects=subj,
+                                                **filter_dict)
+                        else:
+                            dset = self._bucket(0, datatypes=input_path,
+                                                subjects=subj, sessions=sess,
+                                                **filter_dict)
+                    else:
+                        if mask is True:
+                            if sess is None:
+                                dset = self._bucket(3, datatypes=input_path,
+                                                    subjects=subj,
+                                                    **filter_dict)
+                            else:
+                                dset = self._bucket(3, datatypes=input_path,
+                                                    subjects=subj, sessions=sess,
+                                                    **filter_dict)
+                        else:
+                            if sess is None:
+                                dset = self._bucket(1, pipelines=self._label, steps=input_path,
+                                                    subjects=subj,
+                                                    **filter_dict)
+                            else:
+                                dset = self._bucket(1, pipelines=self._label, steps=input_path,
+                                                    subjects=subj, sessions=sess,
+                                                    **filter_dict)
+                    self._input_set[label].append(dset[idx].Abspath)
+            self._report_status(run_order)
 
-                filename = check_modifier(os.path.basename(f_abspath))
-
-                self._output_set[label].append((output_path, filename))
-
-        elif self._input_method == 1:
-            for i, (subj, _) in enumerate(self._input_ref.items()):
-                filename = check_modifier(subj)
-                self._output_set[label].append(self._path, filename)
-
-        elif self._input_method == 2:
-            for i, (subj, sess) in enumerate(self._input_ref.items()):
-                filename = check_modifier('{}_{}'.format(subj, sess))
-                self._output_set[label].append(self._path, filename)
-
+    def _set_output(self, run_order, label, modifier, prefix, suffix, ext):
+        """hidden layer to run on daemon"""
+        if self._step_processed is True:
+            pass
         else:
-            exc_msg = 'unexpected error, incorrect input_method.'
-            self.logging('warn', exc_msg, method=method_name)
+            self._wait_my_turn(run_order, '{}'.format(label), method='set_output')
 
-        self._report_status(run_order)
+            method_name = 'set_output'
+            input_name = self._main_input
+            if self._main_input is None:
+                exc_msg = 'Cannot find input set, run set_input method first.'
+                self.logging('warn', exc_msg, method=method_name)
+            else:
+                self._inspect_label(label, method_name)
+
+            def check_modifier(filename):
+                if modifier is not None:
+                    if isinstance(modifier, dict):
+                        for f, rep in modifier.items():
+                            filename = change_fname(filename, f, rep)
+                    elif isinstance(modifier, str):
+                        if self._input_method is not 1:
+                            exc_msg = 'Single output name assignment only available for input method=1'
+                            self.logging('warn', exc_msg, method=method_name)
+                        else:
+                            filename = modifier
+                    else:
+                        exc_msg = 'wrong modifier!'
+                        self.logging('warn', exc_msg, method=method_name)
+                fn, fext = split_ext(filename)
+                if prefix is not None:
+                    fn = '{}_{}'.format(prefix, fn)
+                if suffix is not None:
+                    fn = '{}_{}'.format(fn, suffix)
+                filename = '.'.join([fn, fext])
+                if ext is not None:
+                    if isinstance(ext, str):
+                        filename = change_ext(filename, ext)
+                    elif ext == False:
+                        filename = remove_ext(filename)
+                    else:
+                        exc_msg = 'wrong extension!'
+                        self.logging('warn', exc_msg, method=method_name)
+                return filename
+
+            # all possible input types, method 0 and method 1
+            self._output_set[label] = []
+            if self._input_method == 0:
+                for i, f_abspath in enumerate(self._input_set[input_name]):
+                    subj, sess = self._input_ref[i]
+
+                    if sess is None:
+                        output_path = self.msi.path.join(self._path, subj)
+                    else:
+                        output_path = self.msi.path.join(self._path, subj, sess)
+
+                    filename = check_modifier(os.path.basename(f_abspath))
+                    self._output_set[label].append((output_path, filename))
+
+            elif self._input_method == 1:
+                filename = check_modifier(modifier)
+                if filename == None:
+                    filename = '{}_output'.format(self.step_code)
+                self._output_set[label].append((self._path, filename))
+
+            else:
+                exc_msg = 'unexpected error, might be caused by incorrect input_method.'
+                self.logging('warn', exc_msg, method=method_name)
+
+            self._report_status(run_order)
 
     def _check_output(self, run_order, label, prefix, suffix, ext):
         """hidden layer to run on daemon"""
-        self._wait_my_turn(run_order, '{}'.format(label), method='check_output')
+        if self._step_processed is True:
+            pass
+        else:
+            self._wait_my_turn(run_order, '{}'.format(label), method='check_output')
+            method_name = 'check_output'
 
-        for l, v in self._output_set.items():
-            if l == label:
-                for p, fn in v:
-                    if prefix is not None:
-                        fn = '{}{}'.format(prefix, fn)
-                    if suffix is not None:
-                        fn = '{}{}'.format(fn, suffix)
-                    if ext is not None:
-                        fn = '{}.{}'.format(fn, ext)
-                    self._output_filter.append((p, fn))
+            for l, v in self._output_set.items():
+                if l == label:
+                    if self._input_method == 0:
+                        for p, fn in v:
+                            if prefix is not None:
+                                fn = '{}{}'.format(prefix, fn)
+                            if suffix is not None:
+                                fn = '{}{}'.format(fn, suffix)
+                            if ext is not None:
+                                fn = '{}.{}'.format(fn, ext)
+                            self._output_filter.append((p, fn))
+                    elif self._input_method == 1: # input_method=1 has only one master output
+                        if isinstance(v, tuple) and len(v) == 2:
+                            p, fn = v
+                            if prefix is not None:
+                                fn = '{}{}'.format(prefix, fn)
+                            if suffix is not None:
+                                fn = '{}{}'.format(fn, suffix)
+                            if ext is not None:
+                                fn = '{}.{}'.format(fn, ext)
+                            self._output_filter.append((p, fn))
+                        else:
+                            exc_msg = 'unexpected error, might be caused by incorrect output_set.'
+                            self.logging('warn', exc_msg, method=method_name)
 
-        if len(self._output_filter) == 0:
-            self.logging('warn', 'insufficient information to generate output_filter.',
-                         method='check_output')
-        self._report_status(run_order)
+            if len(self._output_filter) == 0:
+                self.logging('warn', 'insufficient information to generate output_filter.',
+                             method='check_output')
+            self._report_status(run_order)
 
     def _set_temporary(self, run_order, label):
         """hidden layer to run on daemon"""
-        self._wait_my_turn(run_order, '{}'.format(label), method='set_temporary')
-
-        method_name = 'set_temporary'
-        input_name = self._main_input
-
-        if self._main_input is None:
-            exc_msg = 'Cannot find input set, run set_input method first.'
-            self.logging('warn', exc_msg, method=method_name)
+        if self._step_processed is True:
+            pass
         else:
-            self._inspect_label(label, method_name)
+            self._wait_my_turn(run_order, '{}'.format(label), method='set_temporary')
 
-        step_path = self.msi.path.basename(self.path)
-        temp_path = self._procobj.temp_path
+            method_name = 'set_temporary'
+            input_name = self._main_input
 
-        self._procobj.update_attributes(1)
-        self._temporary_set[label] = []
-        for i, f_abspath in enumerate(self._input_set[input_name]):
-            subj, sess = self._input_ref[i]
-            if sess is None:
-                output_path = self.msi.path.join(temp_path, step_path, subj)
+            if self._main_input is None:
+                exc_msg = 'Cannot find input set, run set_input method first.'
+                self.logging('warn', exc_msg, method=method_name)
             else:
-                output_path = self.msi.path.join(temp_path, step_path, subj, sess)
-            filename = os.path.basename(f_abspath)
-            self._temporary_set[label].append((output_path, filename))
+                if self._input_method != 0:
+                    exc_msg = 'Cannot use temporary step for input_method=1.'
+                    self.logging('warn', exc_msg, method=method_name)
+                self._inspect_label(label, method_name)
 
-        self._report_status(run_order)
+            step_path = self.msi.path.basename(self.path)
+            temp_path = self._procobj.temp_path
+
+            self._procobj.update_attributes(1)
+            self._temporary_set[label] = []
+            for i, f_abspath in enumerate(self._input_set[input_name]):
+                subj, sess = self._input_ref[i]
+                if sess is None:
+                    output_path = self.msi.path.join(temp_path, step_path, subj)
+                else:
+                    output_path = self.msi.path.join(temp_path, step_path, subj, sess)
+                filename = os.path.basename(f_abspath)
+                self._temporary_set[label].append((output_path, filename))
+
+            self._report_status(run_order)
 
     def _set_var(self, run_order, label, value, quote):
         """hidden layer to run on daemon"""
-        self._wait_my_turn(run_order, '{}-{}'.format(label, value), method='set_var')
-        method_name = 'set_var'
-        self._inspect_label(label, method_name)
-        if isinstance(value, list):
-            if quote is True:
-                value = ["'{}'".format(v) for v in value]
-        elif isinstance(value, str) or isinstance(value, int):
-            value = str(value)
-            if quote is True:
-                value = '"{}"'.format(value)
+        if self._step_processed is True:
+            pass
         else:
-            exc_msg = 'incorrect variable.'
-            self.logging('warn', exc_msg, method=method_name)
-        self._var_set[label] = value
-        self._report_status(run_order)
+            self._wait_my_turn(run_order, '{}-{}'.format(label, value), method='set_var')
+            method_name = 'set_var'
+            self._inspect_label(label, method_name)
+            if isinstance(value, list):
+                if quote is True:
+                    value = ["'{}'".format(v) for v in value]
+            elif isinstance(value, str) or isinstance(value, int):
+                value = str(value)
+                if quote is True:
+                    value = '"{}"'.format(value)
+            else:
+                exc_msg = 'incorrect variable.'
+                self.logging('warn', exc_msg, method=method_name)
+            self._var_set[label] = value
+            self._report_status(run_order)
 
     def _set_cmd(self, run_order, command):
         """hidden layer to run on daemon"""
-        self._wait_my_turn(run_order, '{}'.format(command), method='set_cmd')
-        self._cmd_set[len(self._cmd_set.keys())] = command
-        self._report_status(run_order)
+        if self._step_processed is True:
+            pass
+        else:
+            self._wait_my_turn(run_order, '{}'.format(command), method='set_cmd')
+            self._cmd_set[len(self._cmd_set.keys())] = command
+            self._report_status(run_order)
 
     def _inspect_label(self, label, method_name=None):
 
@@ -920,7 +1058,7 @@ class InterfaceHandler(InterfaceBase):
                     index_for_filter.append(i)
             if len(index_for_filter) > 0:
                 self.logging('debug',
-                             '[] of existing files detected, now excluding.'.format(len(index_for_filter)),
+                             '[{}] of existing files detected, now excluding.'.format(len(index_for_filter)),
                              method='_inspect_output')
                 arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
                 for arg_set in arg_sets:
@@ -947,7 +1085,7 @@ class InterfaceHandler(InterfaceBase):
             else:
                 mng = Manager()
             placeholders = self._parse_placeholder(mng, cmd)
-            self.logging('debug', 'placeholder in command template: [].'.format(placeholders),
+            self.logging('debug', 'placeholder in command template: [{}].'.format(placeholders),
                          method='_call_manager')
             mng.set_cmd(cmd)
             arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]

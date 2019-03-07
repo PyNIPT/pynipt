@@ -22,6 +22,18 @@ class Bucket(BucketHandler):
 
     def __call__(self, idx, *args, **kwargs):
         """Return DataFrame followed applying filters"""
+        if 'copy' in kwargs.keys():
+            if kwargs['copy'] is True:
+                from copy import copy
+                _ = kwargs.pop('copy')
+                bucket = copy(self)
+                bucket._idx = idx
+                bucket.set_filters(idx, *args, **kwargs)
+                return bucket
+            else:
+                pass
+        else:
+            pass
         self._idx = idx
         self.set_filters(idx, *args, **kwargs)
         return self

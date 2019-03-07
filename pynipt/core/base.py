@@ -14,48 +14,6 @@ else:
 from .config import config
 
 
-# #%% Set config
-# # def create_config_file(cfg, path):
-# #
-# #     # Config for Pandas Dataframe
-# #     cfg.add_section('Display')
-# #     cfg.set('Display', 'Max_Row', 100)
-# #     cfg.set('Display', 'Max_Colwidth', 100)
-# #
-# #     # Config for Dataset structure
-# #     cfg.add_section('Dataset structure')
-# #     cfg.set('Dataset structure', 'dataset_path', 'Data')
-# #     cfg.set('Dataset structure', 'working_path', 'Processing')
-# #     cfg.set('Dataset structure', 'results_path', 'Results')
-# #     cfg.set('Dataset structure', 'masking_path', 'Mask')
-# #     cfg.set('Dataset structure', 'temporary_path', 'Temp')
-# #     cfg.set('Dataset structure', 'ignore', '.DS_Store')
-# #
-# #     # Config for Plugin
-# #     cfg.add_section('Plugin')
-# #     __plugin_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'plugin')
-# #     cfg.set('Plugin', 'plugin_path', __plugin_path)
-# #     cfg.set('Plugin', 'interface_plugin_path', os.path.join(__plugin_path, 'interface_default.py'))
-# #     cfg.set('Plugin', 'pipeline_plugin_path', os.path.join(__plugin_path, 'pipeline_default.py'))
-# #
-# #     # Computing and processing related
-# #     cfg.add_section('Preferences')
-# #     cfg.set('Preferences', 'daemon_refresh_rate', '0.5')
-# #     cfg.set('Preferences', 'number_of_thread', '4')
-# #
-# #     with open(path, 'w') as configfile:
-# #         cfg.write(configfile)
-# #
-# #
-# # #%% Load config
-# # cfg_path = os.path.join(os.path.expanduser("~"), '.pyniptrc')
-# # config = configparser.RawConfigParser()
-# #
-# # if os.path.exists(cfg_path):
-# #     config.read(cfg_path)
-# # else:
-# #     create_config_file(config, cfg_path)
-
 dataclasses = ['dataset_path', 'working_path', 'results_path', 'masking_path', 'temporary_path']
 dc = [config.get('Dataset structure', c) for c in dataclasses]
 ignore = config.get('Dataset structure', 'ignore').split(',')
@@ -167,6 +125,7 @@ class BucketBase(object):
             if max_depth == 3:      # multi session case
                 self._multi_session = True
                 columns.insert(1, 'Session')
+                columns.insert(0, 'Datatype')
             elif max_depth == 2:    # single session case
                 columns.insert(0, 'Datatype')
             else:                   # otherwise, response as empty
@@ -556,7 +515,7 @@ class ProcessorBase(object):
                 return logRecord.levelno == self.__level
 
         debug_fmt = logging.Formatter('%(asctime)s ::%(levelname)s::[%(name)s] %(message)s')
-        output_fmt = logging.Formatter('%(asctime)s - %(message)s')
+        output_fmt = logging.Formatter('%(asctime)s - %(message)s\n\n')
 
         if self._label is None:
             name = 'PreInit'
@@ -671,23 +630,33 @@ class ProcessorBase(object):
     def _parse_executed_subdir(self):
         """internal method to update subdir information which contains data."""
         base = {1:self._executed, 2:self._reported, 3:self._masked, 4:self._tmp}
+        # results = {1:None, 2:None, 3:None, 4:None}
         column_index = {1:1, 2:1, 3:0, 4:1}
         for i, dic in base.items():
             if self.bucket.param_keys[i] is not None:
+                # if above is None, it's Empty bucket
+
                 if i == 3:
-                    filtered = self.bucket(i)
+                    filtered = self.bucket(i, copy=True)
                 else:
-                    # need to check
                     if self.msi.path.exists(self.msi.path.join(self.bucket.path, dc[i], self.label)):
-                        filtered = self.bucket(i, self.label)
+                        # check if the current package folder is created
+                        filtered = self.bucket(i, self.label, copy=True)
                     else:
+                        # if not, the result will be empty, no existing steps in this package
                         filtered = []
+
                 if len(filtered) is 0:
-                    self._executed = OrderedDict()
+                    dic.clear()
                 else:
                     steps = self._sort_params(filtered.df[filtered.df.columns[column_index[i]]])
-                    for s in steps:  # TODO: fix if order of step became weird
-                        self._executed[self._pattern.sub(r'\1', s)] = s[4:]
+                    for s in steps:
+                        if i == 3:
+                            n_files = len(self.bucket(i, datatypes=s))
+                        else:
+                            n_files = len(self.bucket(i, pipelines=self.label, steps=s))
+                        if n_files > 0:
+                            dic[self._pattern.sub(r'\1', s)] = s[4:]
 
     def _parse_existing_subdir(self):
         """internal method to update all subdir information that created in each dataclass folders."""
@@ -788,6 +757,7 @@ class InterfaceBase(object):
 
     def _init_attr_for_execution(self):
         # attributes for controlling method execution
+        self._step_processed = False  # True if current step listed in procobj._processed_list
         self._order_counter = 0
         self._processed_run_order = []
         self._daemons = dict()

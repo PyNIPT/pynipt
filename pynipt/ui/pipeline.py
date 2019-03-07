@@ -1,4 +1,5 @@
 import sys
+import time
 from ..core.base import config as __config
 from .bucket import Bucket
 
@@ -28,8 +29,8 @@ def display_html(message):
     return display(HTML(message))
 
 plugin_path = __config.get('Plugin', 'pipeline_plugin_path')
-__default_interface_path = __config.get('Plugin', 'interface_plugin_path')
-__default_pipeline_path = __config.get('Plugin', 'pipeline_plugin_path')
+_default_interface_path = __config.get('Plugin', 'interface_plugin_path')
+_default_pipeline_path = __config.get('Plugin', 'pipeline_plugin_path')
 
 
 def plugin_interface(path):
@@ -50,8 +51,8 @@ def plugin_pipeline(path):
         return __load_source('pipeline', path)
 
 
-Interface = plugin_interface(__default_interface_path)
-pipelines = plugin_pipeline(__default_pipeline_path)
+Interface = plugin_interface(_default_interface_path)
+pipelines = plugin_pipeline(_default_pipeline_path)
 
 
 class Pipeline(object):
@@ -78,6 +79,8 @@ class Pipeline(object):
         self._pipeobj = pipelines
         self._logger = logger
         self.detach_package()
+
+        self._progressbar = None
 
         if 'n_threads' in kwargs.keys():
             self._n_threads = kwargs['n_threads']
@@ -126,8 +129,10 @@ class Pipeline(object):
             package_id = self.installed_packages[package_id]
 
         if package_id in self.installed_packages.values():
-            self._interface = Interface(self._bucket, package_id, logger=True, n_threads=self._n_threads)
-            command = 'self.selected = self._pipeobj.{}(self._interface, self._n_threads'.format(package_id)
+            self._interface = Interface(self._bucket, package_id,
+                                        logger=self._logger,
+                                        n_threads=self._n_threads)
+            command = 'self.selected = self._pipeobj.{}(self._interface'.format(package_id)
             if kwargs:
                 command += ', **{})'.format('kwargs')
             else:
@@ -144,18 +149,37 @@ class Pipeline(object):
             print("The pipeline package '{}' is selected.\n"
                   "Please double check if all parameters are "
                   "correctly provided before run this pipline".format(package_id))
-            avails = ["\t{} : {}".format(*item) for item in self.selected.installed_packages.items()]
+            avails = ["\t{} : {}".format(*item) for item in self.selected.installed_pipelines.items()]
             output = ["List of available pipelines in selected package:"] + avails
             print("\n".join(output))
 
     def check_progression(self):
         if self.selected is not None:
+
             param = self.selected.interface.scheduler_param
-            total = len(param['queue']) + len(param['done'])
-            display_html('Number of threads: {}'.format(param['n_threads']))
-            return progressbar(total=total,
-                               desc=self.installed_packages[self._stored_id],
-                               initial=len(param['done']))
+            queued_jobs = len(param['queue'])
+            finished_jobs = len(param['done'])
+            self._progressbar =  progressbar(total=queued_jobs + finished_jobs,
+                                             desc=self.installed_packages[self._stored_id],
+                                             initial=finished_jobs)
+
+            def workon(n_queued, n_finished):
+                while n_finished < n_queued + n_finished:
+                    delta = n_queued - len(param['queue'])
+                    if delta > 0:
+                        n_queued -= delta
+                        n_finished += delta
+                        self._progressbar.update(delta)
+                    time.sleep(0.2)
+                self._progressbar.close()
+
+            import threading
+            thread = threading.Thread(target=workon, args=(queued_jobs, finished_jobs))
+            if notebook_env is True:
+                display(self._progressbar)
+                thread.start()
+            else:
+                thread.start()
 
     def set_param(self, **kwargs):
         """Set parameters
@@ -192,7 +216,7 @@ class Pipeline(object):
             command = 'print(self._pipeobj.{}.__init__.__doc__)'.format(idx)
             exec(command)
 
-    def run(self, idx, **kwargs):
+    def run(self, idx, verbose=True, **kwargs):
         """Execute selected pipeline
 
         :param idx: index of available pipeline
@@ -200,7 +224,9 @@ class Pipeline(object):
         :return:
         """
         self.set_param(**kwargs)
-        exec('self.selected.pipe_{}()'.format(self.selected.installed_packages[idx]))
+        if verbose is True:
+            exec('print(self.selected.pipe_{}.__doc__)'.format(self.selected.installed_pipelines[idx]))
+        exec('self.selected.pipe_{}()'.format(self.selected.installed_pipelines[idx]))
 
     def get_interface_object(self):
         if self._interface:
@@ -211,3 +237,31 @@ class Pipeline(object):
     def get_bucket_object(self):
         return self._bucket
 
+    def plugin(self, interface=None, pipeline=None, listing=True):
+        """
+
+        Args:
+            interface(str):     file path for interface plugin
+            pipeline(str):      file path for pipeline plugin
+
+        Returns:
+
+        """
+        if interface is not None: # TODO: interface is replaced while pipeline is added in
+            global Interface
+            Interface = plugin_interface(interface)
+
+        if pipeline is not None:
+            global pipelines
+            pipelines = plugin_pipeline(pipeline)
+            avails = ["\t{} : {}".format(*item) for item in self.installed_packages.items()]
+            output = ["\nList of installed pipeline packages:"] + avails
+            print("\n".join(output))
+
+    @property
+    def bucket(self):
+        return self._bucket
+
+    @property
+    def interface(self):
+        return self._interface

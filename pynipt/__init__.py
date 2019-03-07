@@ -20,7 +20,7 @@ if sys.version_info[0] == 3:
 else:
     from urllib2 import urlopen as __urlopen
 
-__version__ = '0.0.1a1'
+__version__ = '0.0.1a2'
 
 # URLs for developer plugin modules
 __inter_plugin_url = 'https://gist.githubusercontent.com/dvm-shlee/' \
@@ -33,18 +33,6 @@ __pipe_plugin_url = 'https://gist.githubusercontent.com/dvm-shlee/' \
 __plugin_path = __config.get('Plugin', 'plugin_path')
 __default_interface_path = __config.get('Plugin', 'interface_plugin_path')
 __default_pipeline_path = __config.get('Plugin', 'pipeline_plugin_path')
-
-
-# def restore_config():
-#     import shutil
-#     import configparser
-#     from datetime import date
-#     if os.path.exists(__cfg_path):
-#         dirname, filename = os.path.split(__cfg_path)
-#         shutil.copy(__cfg_path, os.path.join(dirname, '{}_{}'.format(filename, date.today().strftime("%y%m%d"))))
-#         os.unlink(__cfg_path)
-#     config = configparser.RawConfigParser()
-#     __make_config(config, __cfg_path)
 
 
 # download default interface from developer's gist
@@ -73,6 +61,17 @@ def update_default_plugin(module='all'):
     else:
         raise ModuleNotFoundError
 
+    # remove cache files
+    if sys.version_info[0] == 3:
+        import shutil
+        if os.path.exists(os.path.join(__plugin_path, '__pycache__')):
+            shutil.rmtree(os.path.join(__plugin_path, '__pycache__'))
+    else:
+        if os.path.exists('{}c'.format(__default_interface_path)):
+            os.unlink('{}c'.format(__default_interface_path))
+        if os.path.exists('{}c'.format(__default_pipeline_path)):
+            os.unlink('{}c'.format(__default_pipeline_path))
+
 
 # create plugin folder if it does not exist.
 if not os.path.exists(__plugin_path):
@@ -90,6 +89,7 @@ from .ui.pipeline import Pipeline
 __all__ = ['Bucket',
            'Processor',
            'InterfaceBuilder',
+           'PipelineBuilder',
            'Scheduler',
            'Pipeline']
 
