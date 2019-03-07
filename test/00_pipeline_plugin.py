@@ -43,7 +43,11 @@ class A_fMRI_Preprocessing(PipelineBuilder):
 
     def pipe_01_EmptyMaskPreparation(self):
         """
+        The dataset will be first slice timing corrected, and average intensity map of functional image
+        will be calculated on motion corrected data. In the end of this pipeline, empty image file will be
+        generated in the masking path as a place holder of mask with '_mask' suffix.
 
+        If the anatomical data were inputted, the empty mask files will be generated as well.
         """
         # Series of user defined interface commands to executed for the pipeline
         # -- start -- #
@@ -64,7 +68,14 @@ class A_fMRI_Preprocessing(PipelineBuilder):
 
     def pipe_02_CorePreprocessing(self):
         """
+        Prior to run this pipeline, template_path argument need to be inputted.
 
+        All the dataset will be motion corrected, and skull stripping will be applied.
+        If the anatomical data are inputted, then functional data will be co-registered into
+        anatomical space using affine registration.
+
+        Finally, the functional data will be normalized into template space using ANTs SyN non-linear
+        registration.
         """
         # Series of user defined interface commands to executed for the pipeline
         # -- start -- #

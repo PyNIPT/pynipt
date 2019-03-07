@@ -231,7 +231,7 @@ class InterfaceBuilder(InterfaceHandler):
             self._mngs = self._call_manager()
             for mng in self._mngs:
                 mng.schedule(self._schd, label=self.step_code)
-            self.logging('debug', 'job scheduled for step::[{}] by the manager.'.format(self.step_code),
+            self.logging('debug', 'job scheduled by the manager.'.format(self.step_code),
                          method='run-[{}]'.format(self.step_code))
             self._schd.submit(mode='background', use_label=True)
             self._schd.join() # because foreground option cannot check the status
@@ -260,12 +260,12 @@ class InterfaceBuilder(InterfaceHandler):
             # step code update
             last_step_code = self._procobj._waiting_list[0]
             if last_step_code != self.step_code:
-                self.logging('warn', '[{}] something got wrong, step code missmatch, '
+                self.logging('warn', '[{}]-something got wrong, step code missmatch, '
                                      'which can cause serious problem'.format(self.step_code),
                              method='run')
             else:
                 self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
-            self.logging('debug', '[{}] is removed on the waiting list'.format(self.step_code),
+            self.logging('debug', '[{}]-removed from the waiting list'.format(self.step_code),
                          method='run')
 
 

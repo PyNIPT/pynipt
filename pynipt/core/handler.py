@@ -919,7 +919,7 @@ class InterfaceHandler(InterfaceBase):
                 self._output_set[label].append((self._path, filename))
 
             else:
-                exc_msg = 'unexpected error, might be caused by incorrect input_method.'
+                exc_msg = '[{}]-unexpected error, might be caused by incorrect input_method.'.format(self.step_code)
                 self.logging('warn', exc_msg, method=method_name)
 
             self._report_status(run_order)
@@ -960,11 +960,11 @@ class InterfaceHandler(InterfaceBase):
                                 fn = '{}.{}'.format(fn_woext, old_ext)
                             self._output_filter.append((p, fn))
                         else:
-                            exc_msg = 'unexpected error, might be caused by incorrect output_set.'
+                            exc_msg = '[{}]-unexpected error, might be caused by incorrect input_method.'.format(self.step_code)
                             self.logging('warn', exc_msg, method=method_name)
 
             if len(self._output_filter) == 0:
-                self.logging('warn', 'insufficient information to generate output_filter.',
+                self.logging('warn', '[{}]-insufficient information to generate output_filter.'.format(self.step_code),
                              method='check_output')
             self._report_status(run_order)
 
@@ -979,11 +979,11 @@ class InterfaceHandler(InterfaceBase):
             input_name = self._main_input
 
             if self._main_input is None:
-                exc_msg = 'Cannot find input set, run set_input method first.'
+                exc_msg = '[{}]-cannot find input set, run set_input method first.'.format(self.step_code)
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 if self._input_method != 0:
-                    exc_msg = 'Cannot use temporary step for input_method=1.'
+                    exc_msg = '[{}]-cannot use temporary step for input_method=1.'.format(self.step_code)
                     self.logging('warn', exc_msg, method=method_name)
                 self._inspect_label(label, method_name)
 
@@ -1019,7 +1019,7 @@ class InterfaceHandler(InterfaceBase):
                 if quote is True:
                     value = '"{}"'.format(value)
             else:
-                exc_msg = 'incorrect variable.'
+                exc_msg = '[{}]-incorrect variable.'.format(self.step_code)
                 self.logging('warn', exc_msg, method=method_name)
             self._var_set[label] = value
             self._report_status(run_order)
@@ -1038,7 +1038,7 @@ class InterfaceHandler(InterfaceBase):
         inspect_items = [self._input_set, self._output_set, self._var_set, self._temporary_set]
         for item in inspect_items:
             if label in item.keys():
-                exc_msg = 'The label have been assigned already'
+                exc_msg = '[{}]-The label have been assigned already'.format(self.step_code)
                 self.logging('warn', exc_msg, method=method_name)
 
     def _parse_placeholder(self, manager, command):
@@ -1064,7 +1064,8 @@ class InterfaceHandler(InterfaceBase):
                     index_for_filter.append(i)
             if len(index_for_filter) > 0:
                 self.logging('debug',
-                             '[{}] of existing files detected, now excluding.'.format(len(index_for_filter)),
+                             '[{}]-[{}] of existing files detected, now excluding.'.format(self.step_code,
+                                                                                           len(index_for_filter)),
                              method='_inspect_output')
                 arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
                 for arg_set in arg_sets:
@@ -1072,26 +1073,29 @@ class InterfaceHandler(InterfaceBase):
                         if isinstance(value, list):
                             arg_set[label] = [v for i, v in enumerate(value) if i not in index_for_filter]
             else:
-                self.logging('debug', 'all outputs are passed the inspection.',
+                self.logging('debug', '[{}]-all outputs are passed the inspection.'.format(self.step_code),
                              method=self.step_code)
         else:
-            self.logging('debug', 'no output filter', method='_inspect_output')
+            self.logging('debug', '[{}]-no output filter'.format(self.step_code),
+                         method='_inspect_output')
 
     def _call_manager(self):
         """call the Manager the command template and its arguments to Manager"""
 
         managers = []
         if len(self._cmd_set.keys()) == 0:
-            self.logging('warn', 'there is no command', method='_call_manager')
+            self.logging('warn', '[{}]-there is no command'.format(self.step_code),
+                         method='_call_manager')
         for i, cmd in sorted(self._cmd_set.items()):
             if hasattr(self.msi, 'client'):
-                self.logging('debug', 'remote client detected.',
+                self.logging('debug', '[{}]-remote client detected.'.format(self.step_code),
                              method='_call_manager')
                 mng = Manager(self._procobj.bucket.msi.client)
             else:
                 mng = Manager()
             placeholders = self._parse_placeholder(mng, cmd)
-            self.logging('debug', 'placeholder in command template: [{}].'.format(placeholders),
+            self.logging('debug', '[{}]-placeholder in command template: [{}].'.format(self.step_code,
+                                                                                       list(placeholders)),
                          method='_call_manager')
             mng.set_cmd(cmd)
             arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
@@ -1112,6 +1116,6 @@ class InterfaceHandler(InterfaceBase):
                         if ph in label:
                             mng.set_arg(label=label, args=value)
             managers.append(mng)
-            self.logging('debug', 'managers are got all information they need!',
+            self.logging('debug', '[{}]-managers are got all information they need!'.format(self.step_code),
                          method='_call_manager')
         return managers

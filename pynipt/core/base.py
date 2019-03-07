@@ -825,8 +825,9 @@ class InterfaceBase(object):
                         loop = False
             time.sleep(refresh_rate)
         if message is not None:
-            self.logging('debug', '[#{}]::{}'.format(str(run_order).zfill(3),
-                                                      message), method=method)
+            self.logging('debug', '[{}]-#{}-{}'.format(self.step_code,
+                                                        str(run_order).zfill(3),
+                                                        message), method=method)
 
     def _report_status(self, run_order):
         self._processed_run_order.append(run_order)
