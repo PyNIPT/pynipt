@@ -11,6 +11,7 @@ refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
 
 class InterfaceBuilder(InterfaceHandler):
     """ The class for building a interface plugin
+    # TODO: update docstring, find better way than using daemon
 
     Methods:
         init_step:
