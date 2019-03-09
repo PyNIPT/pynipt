@@ -882,20 +882,22 @@ class InterfaceHandler(InterfaceBase):
                     else:
                         exc_msg = 'wrong modifier!'
                         self.logging('warn', exc_msg, method=method_name)
-                fn, fext = split_ext(filename)
-                if prefix is not None:
-                    fn = '{}{}'.format(prefix, fn)
-                if suffix is not None:
-                    fn = '{}{}'.format(fn, suffix)
-                filename = '.'.join([fn, fext])
-                if ext is not None:
-                    if isinstance(ext, str):
-                        filename = change_ext(filename, ext)
-                    elif ext == False:
-                        filename = remove_ext(filename)
-                    else:
-                        exc_msg = 'wrong extension!'
-                        self.logging('warn', exc_msg, method=method_name)
+                    fn, fext = split_ext(filename)
+                    if prefix is not None:
+                        fn = '{}{}'.format(prefix, fn)
+                    if suffix is not None:
+                        fn = '{}{}'.format(fn, suffix)
+                    filename = '.'.join([fn, fext])
+                    if ext is not None:
+                        if isinstance(ext, str):
+                            filename = change_ext(filename, ext)
+                        elif ext == False:
+                            filename = remove_ext(filename)
+                        else:
+                            exc_msg = 'wrong extension!'
+                            self.logging('warn', exc_msg, method=method_name)
+                else:
+                    filename = None
                 return filename
 
             # all possible input types, method 0 and method 1

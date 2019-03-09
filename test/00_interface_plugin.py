@@ -323,3 +323,152 @@ class Interface(Processor):
                     "*[base] *[tfmorph] *[tfmat]")
         itf.check_output()
         itf.run()
+
+    def afni_BlurInMask(self, input_path, mask_path, fwhm,
+                        file_idx=None, img_ext='nii.gz',
+                        step_idx=None, sub_code=None, suffix=None):
+        """ FWHM based spatial gaussian smoothing using 3dBlurInMask command of Afni
+        Args:
+            input_path(str):    datatype or stepcode of input data
+            mask_path(str):     path for brain mask image
+            fwhm(float):        full width half maximum value
+            file_idx(int):      index of file if the process need to be executed on a specific file
+                                in session folder.
+            img_ext(str):       file extension (default='nii.gz')
+            step_idx(int):      stepcode index (positive integer lower than 99)
+            sub_code(str):      sub stepcode, one character, 0 or A-Z
+            suffix(str):        suffix to identify the current step
+        """
+        itf = InterfaceBuilder(self)
+        itf.init_step(title='BlurInMask', mode='processing',
+                      idx=step_idx, subcode=sub_code, suffix=suffix)
+        itf.set_input(label='input', input_path=input_path, idx=file_idx,
+                      filter_dict=dict(ext=img_ext), method=0)
+        itf.set_var(label='fwhm', value=str(fwhm))
+        itf.set_var(label='mask', value=mask_path)
+        itf.set_output(label='output')
+        itf.set_cmd("3dBlurInMask -prefix *[output] -FWHM *[fwhm] -mask *[mask] *[input]")
+        itf.check_output(label='output')
+        itf.run()
+
+    def afni_BlurToFWHM(self, input_path, fwhm, file_idx=None, img_ext='nii.gz',
+                  step_idx=None, sub_code=None, suffix=None):
+        """ FWHM based spatial gaussian smoothing using 3dmerge command of Afni
+        Args:
+            input_path(str):    datatype or stepcode of input data
+            fwhm(float):        full width half maximum value
+            file_idx(int):      index of file if the process need to be executed on a specific file
+                                in session folder.
+            img_ext(str):       file extension (default='nii.gz')
+            step_idx(int):      stepcode index (positive integer lower than 99)
+            sub_code(str):      sub stepcode, one character, 0 or A-Z
+            suffix(str):        suffix to identify the current step
+        """
+        itf = InterfaceBuilder(self)
+        itf.init_step(title='BlurToFWHM', mode='processing',
+                      idx=step_idx, subcode=sub_code, suffix=suffix)
+        itf.set_input(label='input', input_path=input_path, idx=file_idx,
+                      filter_dict=dict(ext=img_ext), method=0)
+        itf.set_var(label='fwhm', value=str(fwhm))
+        itf.set_output(label='output')
+        itf.set_cmd("3dmerge -prefix *[output] -doall -1blur_fwhm *[fwhm] *[input]")
+        itf.check_output(label='output')
+        itf.run()
+
+    def afni_Scailing(self, input_path, mask_path, mean=100, max=200,
+                     img_ext='nii.gz',
+                     step_idx=None, sub_code=None, suffix=None):
+        """ Scaling the time series dataset to have given mean in the mask
+        If max value is inputted, the max value will be cut at given value.
+
+        Args:
+            input_path(str):    datatype or stepcode of input data
+            mask_path(str):     path for brain mask image
+            mean(int, float):   desired mean value
+            max(int, float):    desired max value
+            img_ext(str):       file extension (default='nii.gz')
+            step_idx(int):      stepcode index (positive integer lower than 99)
+            sub_code(str):      sub stepcode, one character, 0 or A-Z
+            suffix(str):        suffix to identify the current step
+        """
+        itf = InterfaceBuilder(self)
+        itf.init_step(title='Scaling', mode='processing',
+                      idx=step_idx, subcode=sub_code, suffix=suffix)
+        itf.set_input(label='input', input_path=input_path,
+                      filter_dict=dict(ext=img_ext), method=0)
+        itf.set_temporary(label='meanimg')
+        itf.set_var(label='mask', value=mask_path)
+        itf.set_var(label='mean', value=mean)
+        if max is not None:
+            itf.set_var(label='max', value=max)
+            expr_block = 'c * min(*[max], a/b**[mean])'
+        else:
+            expr_block = 'c * min(a/b**[mean])'
+        itf.set_output(label='output')
+        itf.set_cmd("3dTstat -mean -prefix *[meanimg] *[input]")
+        itf.set_cmd("3dcalc -a *[input] -b *[meanimg] -c *[mask] -expr '{}' -prefix *[output]".format(expr_block))
+        itf.check_output(label='output')
+        itf.run()
+
+    def afni_Deconvolution(self, input_path, mask_path,
+                           onset_time, model, parameters, polort=2,
+                           regex=None, img_ext='nii.gz',
+                           step_idx=None, sub_code=None, suffix=None):
+        """ General Linear Model analysis using 3dDeconvolve of Afni package
+        this interface is for use of single stimulation model only.
+
+        Args:
+            input_path(str):    datatype or stepcode of input data
+            mask_path(str):     path for brain mask image
+            polort(int):        polynomial regressor for detrending
+            onset_time(list):   stimulation onset time, list of int (e.g. [10, 50, 90])
+            model(str):         response model
+            parameters(list):   parameters for response model
+            regex(str):         regular express pattern to filter dataset
+            img_ext(str):       file extension (default='nii.gz')
+            step_idx(int):      stepcode index (positive integer lower than 99)
+            sub_code(str):      sub stepcode, one character, 0 or A-Z
+            suffix(str):        suffix to identify the current step
+        """
+        itf = InterfaceBuilder(self)
+        itf.init_step(title='Deconvolve', mode='processing',
+                      idx=step_idx, subcode=sub_code, suffix=suffix)
+        if regex is not None:
+            filter_dict = dict(regex=regex,
+                               ext=img_ext)
+        else:
+            filter_dict = dict(ext=img_ext)
+        # set input
+        itf.set_input(label='input', input_path=input_path,
+                      filter_dict=filter_dict, method=0)
+        # set variables
+        itf.set_var(label='mask', value=mask_path)
+        itf.set_var(label='polort', value=polort)
+        itf.set_var(label='onset_time', value=' '.join(map(str, onset_time)))
+        itf.set_var(label='model', value=model)
+        itf.set_var(label='parameters', value=','.join(map(str, parameters)))
+        # set temporary output
+        itf.set_temporary(label='bucket')
+        # set main output
+        itf.set_output(label='output')
+        itf.set_output(label='matrix', ext=False)
+        itf.set_cmd("3dDeconvolve -input *[input] -mask *[mask] "
+                    "-num_stimts 1 -polort *[polort] -stim_times 1 '1D: *[onset_time]' "
+                    "'*[model](*[parameters])' -stim_label 1 STIM -tout -bucket *[bucket] -x1D *[matrix]")
+        itf.set_cmd("3dREMLfit -matrix *[matrix].xmat.1D -input *[input] -tout -Rbuck *[output] -verb")
+        itf.check_output(label='output')
+        itf.run()
+
+    def afni_TwoSampleTtest(self, group_dict, step_idx=None, sub_code=None, suffix=None):
+        """
+
+        Args:
+            step_idx:
+            sub_code:
+            suffix:
+            **group_filters:
+
+        Returns:
+
+        """
+        pass

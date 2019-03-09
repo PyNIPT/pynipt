@@ -2,21 +2,22 @@
 
 import pynipt as pn
 
-prjpath = '/Users/shlee419/Projects/dataset/3Drat_fMRI_2ses_2runs'
+# prjpath = '/Users/shlee419/Projects/dataset/3Drat_fMRI_2ses_2runs'
+prjpath = '/Users/shlee419/Projects/JupyterNotebooks/05_STN-opto'
 dset = pn.Bucket(prjpath)
-proc = pn.Processor(dset, 'A_PipelineTesting', logger=True)
+# proc = pn.Processor(dset, 'A_PipelineTesting', logger=True)
+proc = pn.Processor(dset, 'A_fMRI_Preprocessing', logger=True)
+
 
 #%% input_method 1 test (group statistics)
 step = pn.InterfaceBuilder(proc)
-step.init_step(title='GroupAnalysisTestStep', suffix='func', idx=1, subcode=0,
+step.init_step(title='GroupAnalysisTestStep', suffix='func', idx=6, subcode=0,
                mode='reporting')
 
-step.set_input(label='input', input_path='func', method=1,
-               filter_dict=dict(regex=r'sub-F\d+_.*_bold', ext='nii.gz'))
+step.set_input(label='input', input_path='050', method=1,
+               filter_dict=dict(regex=r'sub-oSTN\d{3}_task-130Hz10mW_run-\d{2}$', ext='nii.gz'))
+# step.set_output(label='output', modifier='130Hz10mW_stim')
 step.set_output(label='output')
-step.set_input(label='input2', input_path='func', method=1,
-               filter_dict=dict(regex=r'sub-M\d+_.*_bold', ext='nii.gz'))
-
 #%%
 print(step._input_set)
 print(step._input_ref)
@@ -44,15 +45,3 @@ for label in step._input_set.keys():
 
 #%% reset
 proc.clear()
-
-
-#%%
-import shlex
-from subprocess import Popen, PIPE
-proc = Popen(shlex.split('ls'),
-                               # stdin=PIPE,   # Executor not use stdin, activate later when it becomes available
-                               stdin=None,
-                               stdout=PIPE,
-                               stderr=PIPE)
-
-stdout, stderr = proc.communicate()

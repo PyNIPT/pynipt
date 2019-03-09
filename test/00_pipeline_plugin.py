@@ -1,44 +1,73 @@
 from pynipt import PipelineBuilder
 
 
-class A_fMRI_Preprocessing(PipelineBuilder):
+class UNCCH_CAMRI(PipelineBuilder):
     def __init__(self, interface,
                  # User defined arguments
                  # -- start -- #
-                 template_path=None,
-                 anat='anat',
-                 func='func',
-                 tr=2,
-                 tpattern='altplus',
+                 template_path=None, anat='anat', func='func',
+                 tr=2, tpattern='altplus',
+                 regex=None,
+                 fwhm=0.5, mask_path=None,
+                 hrf_model=None, hrf_parameters=None, stim_onsets=None,
+                 step_idx=None, step_tag=None,
                  # --  end  -- #
                  ):
-        """Standard fMRI pipeline package for the University of North Carolina at Chapel Hill,
-        Center of Animal MRI (CAMRI)
+        """
+        Standard fMRI pipeline package for the University of North Carolina at Chapel Hill,
+        to use for the data analysis services in Center of Animal MRI (CAMRI)
         Author  : SungHo Lee(shlee@unc.edu)
         Revised :
             ver.1: Dec.11st.2017
             ver.2: Mar.7th.2019
 
-        template_path(str): absolute path of brain template image (default=None)
-        anat(str):          datatype for anatomical image (default='anat')
-        func(str):          datatype for functional image (default='func')
-        tr(int):            the repetition time of EPI data
-        tpattern(str):      slice order of image
-            alt+z = altplus   = alternating in the plus direction
-            alt+z2            = alternating, starting at slice #1 instead of #0
-            alt-z = altminus  = alternating in the minus direction
-            alt-z2            = alternating, starting at slice #nz-2 instead of #nz-1
-            seq+z = seqplus   = sequential in the plus direction
-            seq-z = seqminus  = sequential in the minus direction
+        Keyword Args: - listed based on each steps
+            - 01_EmptyMaskPreparation
+            anat(str):          datatype for anatomical image (default='anat')
+            func(str):          datatype for functional image (default='func')
+            tr(int):            the repetition time of EPI data
+            tpattern(str):      slice order of image
+                alt+z = altplus   = alternating in the plus direction
+                alt+z2            = alternating, starting at slice #1 instead of #0
+                alt-z = altminus  = alternating in the minus direction
+                alt-z2            = alternating, starting at slice #nz-2 instead of #nz-1
+                seq+z = seqplus   = sequential in the plus direction
+                seq-z = seqminus  = sequential in the minus direction
+
+            - 02_CorePreprocessing
+            template_path(str): absolute path of brain template image (default=None)
+
+            - 03_TaskBaseAnalysis
+            regex(str):             Regular express pattern of filename to select dataset
+            mask_path(str):         path of brain mask image
+            fwhm(int or float):     full width half maximum value for smoothing
+            hrf_model(str):         Hemodynamic Response Function (HRF) according to the 3dDeconvolve command in Afni
+            hrf_parameters(list):   parameter values for the HRF
+            stim_onset(list):       stimulation onset times
+            step_idx(idx):          step_index to classify the step with other when apply multiple
+            step_tag(str):          suffix tag to classify the step with other when apply multiple
         """
-        super(A_fMRI_Preprocessing, self).__init__(interface)
+        super(UNCCH_CAMRI, self).__init__(interface)
         # User defined attributes for storing arguments
         # -- start -- #
-        self.template_path = template_path
+        # 01_EmptyMaskPreparation
         self.anat = anat
         self.func = func
         self.tr = tr
         self.tpattern = tpattern
+
+        # 02_CorePreprocessing
+        self.template_path = template_path
+
+        # 03_TaskBaseAnalysis
+        self.regex = regex
+        self.mask_path = mask_path
+        self.fwhm = fwhm
+        self.hrf_model = hrf_model
+        self.hrf_parameters = hrf_parameters
+        self.stim_onsets = stim_onsets
+        self.step_idx = step_idx
+        self.step_tag = step_tag
         # --  end  -- #
 
     def pipe_01_EmptyMaskPreparation(self):
@@ -125,4 +154,25 @@ class A_fMRI_Preprocessing(PipelineBuilder):
         self.interface.ants_ApplySpatialNorm(input_path='030', ref_path='04A',
                                              step_idx=4, sub_code=0,
                                              suffix=self.func)
+        # --  end  -- #
+
+    def pipe_03_TaskBasedAnalysis(self):
+        """
+        The normalized data will be scaled to have mean value of 100 for each voxel followed by the spacial smoothing
+        to
+        """
+        # Series of user defined interface commands to executed for the pipeline
+        # -- start -- #
+        self.interface.afni_Scailing(input_path='040', mask_path=self.mask_path,
+                                     mean=100, max=200, step_idx=self.step_idx, sub_code='A',
+                                     suffix=self.step_tag)
+        self.interface.afni_BlurToFWHM(input_path='{}A'.format(str(self.step_idx).zfill(2)),
+                                       fwhm=self.fwhm,
+                                       step_idx=self.step_idx, sub_code='B', suffix=self.step_tag)
+        self.interface.afni_Deconvolution(input_path='{}B'.format(str(self.step_idx).zfill(2)),
+                                          mask_path=self.mask_path,
+                                          regex=self.regex,
+                                          onset_time=self.stim_onsets, model=self.hrf_model,
+                                          parameters=self.hrf_parameters,
+                                          step_idx=self.step_idx, sub_code=0, suffix=self.step_tag)
         # --  end  -- #
