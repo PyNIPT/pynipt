@@ -17,11 +17,14 @@ step.init_step(title='GroupAnalysisTestStep', suffix='func', idx=6, subcode=0,
 step.set_input(label='input', input_path='050', method=1,
                filter_dict=dict(regex=r'sub-oSTN\d{3}_task-130Hz10mW_run-\d{2}$', ext='nii.gz'))
 # step.set_output(label='output', modifier='130Hz10mW_stim')
-step.set_output(label='output')
+step.set_output(label='output', ext='nii.gz')
 #%%
 print(step._input_set)
 print(step._input_ref)
 print(step._output_set)
+
+#%%
+step.set_cmd('3dttest++ -setA *[input] -prefix *[output]')
 
 #%% static_input test
 step = pn.InterfaceBuilder(proc)

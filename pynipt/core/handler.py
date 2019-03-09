@@ -897,7 +897,13 @@ class InterfaceHandler(InterfaceBase):
                             exc_msg = 'wrong extension!'
                             self.logging('warn', exc_msg, method=method_name)
                 else:
-                    filename = None
+                    filename = '{}_output'.format(self.step_code)
+                    if prefix is not None:
+                        filename = '{}{}'.format(prefix, filename)
+                    if suffix is not None:
+                        filename = '{}{}'.format(filename, suffix)
+                    if ext is not None:
+                        filename = '{}.{}'.format(filename, ext)
                 return filename
 
             # all possible input types, method 0 and method 1
@@ -916,8 +922,6 @@ class InterfaceHandler(InterfaceBase):
 
             elif self._input_method == 1:
                 filename = check_modifier(modifier)
-                if filename == None:
-                    filename = '{}_output'.format(self.step_code)
                 self._output_set[label].append((self._path, filename))
 
             else:

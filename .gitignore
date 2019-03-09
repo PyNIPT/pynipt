@@ -10,3 +10,5 @@ PyNIPT.egg-info/*
 dist
 build
 *.pid
+test
+test/*
