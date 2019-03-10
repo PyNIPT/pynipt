@@ -16,8 +16,8 @@
     - Jupyter notebook environment (https://jupyter.org)
 
 - ***ChangeLog:***
-    - v0.0.2 - stability improvement, realtime update of progress bar
-    - v0.0.1 - prerelease version
+    - v0.0.2    - stability improvement, realtime update of progress bar
+    - v0.0.1    - prerelease version
     
 #### License
 

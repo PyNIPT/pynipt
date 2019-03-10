@@ -626,7 +626,6 @@ class ProcessorBase(object):
     def _parse_executed_subdir(self):
         """internal method to update subdir information which contains data."""
         base = {1:self._executed, 2:self._reported, 3:self._masked, 4:self._tmp}
-        # results = {1:None, 2:None, 3:None, 4:None}
         column_index = {1:1, 2:1, 3:0, 4:1}
         for i, dic in base.items():
             if self.bucket.param_keys[i] is not None:
@@ -649,6 +648,8 @@ class ProcessorBase(object):
                     for s in steps:
                         if i == 3:
                             n_files = len(self.bucket(i, datatypes=s))
+                        elif i == 2:
+                            n_files = len(self.bucket(i, pipelines=self.label, reports=s))
                         else:
                             n_files = len(self.bucket(i, pipelines=self.label, steps=s))
                         if n_files > 0:

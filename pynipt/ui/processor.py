@@ -80,7 +80,7 @@ class Processor(ProcessorHandler):
 
     @property
     def summary(self):
-        self.update()
+        # self.update() # <- this command causes crazy overload, don't put anything on __repr__ except string
         return str(self._summary())
 
     def _summary(self):

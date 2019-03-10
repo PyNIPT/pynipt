@@ -100,7 +100,7 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_input(self, label, input_path, filter_dict=None, method=0, mask=False, idx=None):
+    def set_input(self, label, input_path, filter_dict=None, method=0, mask=False, idx=None, join_modifier=None):
         """set the input with filename filter, data can be collected from dataset path or working path,
         as well as masking path if mask is set to True.
         At least one input path need to be set for building interface.
@@ -114,19 +114,24 @@ class InterfaceBuilder(InterfaceHandler):
         and treat it as single input, which is useful for running statistics.
 
         Args:
-            label(str):         label for space holder on command template
-            input_path(str):    absolute path, step directory, datatype or step code
-            filter_dict(dict):  filter set for parsing input data.
-                                available keys={'contains', 'ignore', 'ext', 'regex', # for filename
-                                                'subjects', 'sessions}                # for select specific group
-            method (int):       0 - run command for the single master file to generate single master output
-                                1 - set multiple files as single input to generate single master output
-            mask(bool):         True if input is mask file
+            label(str):             label for space holder on command template
+            input_path(str):        absolute path, step directory, datatype or step code
+            filter_dict(dict):      filter set for parsing input data.
+                                    available keys={'contains', 'ignore', 'ext', 'regex', # for filename
+                                                    'subjects', 'sessions}                # for select specific group
+            method (int):           0 - run command for the single master file to generate single master output
+                                    1 - set multiple files as single input to generate single master output
+            mask(bool):             True if input is mask file
+            idx(int):               file order index to pick only one file as input across subjects or sessions
+            join_modifier(dict):    can be used when method=1. to alter the way listing the set of inputs
+                                    available keys={'prefix', 'suffix', # too add additional string on input paths
+                                                    'spacer'}           # use given spacer instead single space (e.g. ',' or '\t')
         """
         run_order = self._update_run_order()
         # add current step code to the step list
         daemon = self.get_daemon(self._set_input, run_order, label, input_path,
-                                 filter_dict=filter_dict, method=method, mask=mask, idx=idx)
+                                 filter_dict=filter_dict, method=method, mask=mask, idx=idx,
+                                 join_modifier=join_modifier)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
@@ -174,7 +179,7 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_temporary(self, label):
+    def set_temporary(self, label, path_only=False):
         """method to set temporary output step. the structure of temporary folder
 
         Args:
@@ -182,7 +187,7 @@ class InterfaceBuilder(InterfaceHandler):
         """
         run_order = self._update_run_order()
         # add current step code to the step list
-        daemon = self.get_daemon(self._set_temporary, run_order, label)
+        daemon = self.get_daemon(self._set_temporary, run_order, label, path_only)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 

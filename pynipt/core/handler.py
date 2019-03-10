@@ -135,7 +135,6 @@ class BucketHandler(BucketBase):
         Return:
             returncode (int): 1 if dataclass is Empty, else 0.
         """
-
         def filter_warning(input_items):
             # Print warning message to sys.stderr
 
@@ -403,13 +402,6 @@ class ProcessorHandler(ProcessorBase):
         import string
         avail_codes = string.ascii_uppercase
 
-        # assign existing_dir into local instance
-        # if mode is 'processing':
-        #     existing_dir = self._existing_step_dir
-        # elif mode is 'reporting':
-        #     existing_dir = self._existing_report_dir
-        # elif mode is 'masking':
-        #     existing_dir = self._existing_mask_dir
         if mode in ['processing', 'reporting', 'masking']:
             existing_dir = dict(list(self._existing_step_dir.items()) \
                                 + list(self._existing_mask_dir.items()) \
@@ -649,17 +641,20 @@ class InterfaceHandler(InterfaceBase):
             loop = True
             while loop is True:
                 if self.step_code == self._procobj._waiting_list[0]:
-                        loop = False
+                    loop = False
 
         self._procobj.bucket.update()
-        try:
-            self._procobj.update_attributes(mode_idx)
-        except:
-            self._procobj.update_attributes(1)
+        if mode_idx is not 2:
+            try:
+                self._procobj.update_attributes(mode_idx)
+            except:
+                self._procobj.update_attributes(1)
+        self.logging('debug', '[{}]-step initiated.'.format(self.step_code),
+                     method='init_step')
         self._report_status(run_order)
 
     def _set_input(self, run_order, label, input_path, filter_dict,
-                   method, idx, mask):
+                   method, idx, mask, join_modifier):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
@@ -781,7 +776,20 @@ class InterfaceHandler(InterfaceBase):
                 if num_inputset == 0:
                     self._input_ref = dict()
                 self._input_ref[label] = filter_dict
-                self._input_set[label] = ' '.join([finfo.Abspath for i, finfo in dset])
+                list_of_inputs = [finfo.Abspath for i, finfo in dset]
+                spacer = ' '
+                if join_modifier is not None:
+                    if isinstance(join_modifier, dict):
+                        if 'suffix' in join_modifier.keys():
+                            list_of_inputs = ["{}{}".format(f, join_modifier['suffix']) for f in list_of_inputs]
+                        if 'prefix' in join_modifier.keys():
+                            list_of_inputs = ["{}{}".format(f, join_modifier['prefix']) for f in list_of_inputs]
+                        if 'spacer' in join_modifier.keys():
+                            spacer = join_modifier['spacer']
+                    else:
+                        self.logging('warn', 'inappropriate join_modifier used',
+                                     method=method_name)
+                self._input_set[label] = spacer.join(list_of_inputs)
             else:
                 exc_msg = 'method selection is out of range.'
                 self.logging('warn', exc_msg, method=method_name)
@@ -897,13 +905,29 @@ class InterfaceHandler(InterfaceBase):
                             exc_msg = 'wrong extension!'
                             self.logging('warn', exc_msg, method=method_name)
                 else:
-                    filename = '{}_output'.format(self.step_code)
-                    if prefix is not None:
-                        filename = '{}{}'.format(prefix, filename)
-                    if suffix is not None:
-                        filename = '{}{}'.format(filename, suffix)
-                    if ext is not None:
-                        filename = '{}.{}'.format(filename, ext)
+                    if self._input_method == 1:
+                        filename = '{}_output'.format(self.step_code)
+                        if prefix is not None:
+                            filename = '{}{}'.format(prefix, filename)
+                        if suffix is not None:
+                            filename = '{}{}'.format(filename, suffix)
+                        if ext is not None:
+                            filename = '{}.{}'.format(filename, ext)
+                    else:
+                        fn, fext = split_ext(filename)
+                        if prefix is not None:
+                            fn = '{}{}'.format(prefix, fn)
+                        if suffix is not None:
+                            fn = '{}{}'.format(fn, suffix)
+                        filename = '.'.join([fn, fext])
+                        if ext is not None:
+                            if isinstance(ext, str):
+                                filename = change_ext(filename, ext)
+                            elif ext == False:
+                                filename = remove_ext(filename)
+                            else:
+                                exc_msg = 'wrong extension!'
+                                self.logging('warn', exc_msg, method=method_name)
                 return filename
 
             # all possible input types, method 0 and method 1
@@ -953,8 +977,8 @@ class InterfaceHandler(InterfaceBase):
                                 fn = '{}.{}'.format(fn_woext, old_ext)
                             self._output_filter.append((p, fn))
                     elif self._input_method == 1: # input_method=1 has only one master output
-                        if isinstance(v, tuple) and len(v) == 2:
-                            p, fn = v
+                        if isinstance(v[0], tuple) and len(v[0]) == 2:
+                            p, fn = v[0]
                             fn_woext, old_ext = split_ext(fn)
                             if prefix is not None:
                                 fn_woext = '{}{}'.format(prefix, fn_woext)
@@ -974,7 +998,7 @@ class InterfaceHandler(InterfaceBase):
                              method='check_output')
             self._report_status(run_order)
 
-    def _set_temporary(self, run_order, label):
+    def _set_temporary(self, run_order, label, path_only):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
@@ -989,23 +1013,26 @@ class InterfaceHandler(InterfaceBase):
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 if self._input_method != 0:
-                    exc_msg = '[{}]-cannot use temporary step for input_method=1.'.format(self.step_code)
-                    self.logging('warn', exc_msg, method=method_name)
+                    if path_only is False:
+                        exc_msg = '[{}]-cannot use temporary step for input_method=1.'.format(self.step_code)
+                        self.logging('warn', exc_msg, method=method_name)
                 self._inspect_label(label, method_name)
 
             step_path = self.msi.path.basename(self.path)
             temp_path = self._procobj.temp_path
-
-            self._procobj.update_attributes(1)
-            self._temporary_set[label] = []
-            for i, f_abspath in enumerate(self._input_set[input_name]):
-                subj, sess = self._input_ref[i]
-                if sess is None:
-                    output_path = self.msi.path.join(temp_path, step_path, subj)
-                else:
-                    output_path = self.msi.path.join(temp_path, step_path, subj, sess)
-                filename = os.path.basename(f_abspath)
-                self._temporary_set[label].append((output_path, filename))
+            if path_only is True:
+                self._temporary_set[label] = self.msi.path.join(temp_path, step_path)
+            else:
+                self._procobj.update_attributes(1)
+                self._temporary_set[label] = []
+                for i, f_abspath in enumerate(self._input_set[input_name]):
+                    subj, sess = self._input_ref[i]
+                    if sess is None:
+                        output_path = self.msi.path.join(temp_path, step_path, subj)
+                    else:
+                        output_path = self.msi.path.join(temp_path, step_path, subj, sess)
+                    filename = os.path.basename(f_abspath)
+                    self._temporary_set[label].append((output_path, filename))
 
             self._report_status(run_order)
 
@@ -1105,7 +1132,7 @@ class InterfaceHandler(InterfaceBase):
                          method='_call_manager')
             mng.set_cmd(cmd)
             arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
-            for arg_set in arg_sets:
+            for i, arg_set in enumerate(arg_sets):
                 for ph in placeholders:
                     for label, value in arg_set.items():
                         if isinstance(value, list):
@@ -1116,9 +1143,12 @@ class InterfaceHandler(InterfaceBase):
                                     joined_values = []
                                     for v in value:
                                         intensive_mkdir(v[0], interface=self.msi)
-                                        # self._mk_dir(v[0])
                                         joined_values.append(self.msi.path.join(*v))
                                     value = joined_values
+                        elif isinstance(value, str):
+                            if i is 3:
+                                # the case for the set_temporary has been initiated with path_only=True
+                                intensive_mkdir(value, interface=self.msi)
                         if ph in label:
                             mng.set_arg(label=label, args=value)
             managers.append(mng)
