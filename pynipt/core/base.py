@@ -17,7 +17,7 @@ from .config import config
 dataclasses = ['dataset_path', 'working_path', 'results_path', 'masking_path', 'temporary_path']
 dc = [config.get('Dataset structure', c) for c in dataclasses]
 ignore = config.get('Dataset structure', 'ignore').split(',')
-refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
+_refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
 
 
 #%% Dataset base class
@@ -820,7 +820,7 @@ class InterfaceBase(object):
                 if previous_run_order in self._processed_run_order:
                     if not self._daemons[previous_run_order].is_alive():
                         loop = False
-            time.sleep(refresh_rate)
+            time.sleep(_refresh_rate)
         if message is not None:
             self.logging('debug', '[{}]-#{}-{}'.format(self.step_code,
                                                         str(run_order).zfill(3),

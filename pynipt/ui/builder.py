@@ -6,7 +6,7 @@ from paralexe import Scheduler
 from ..core.base import config
 from ..core.handler import InterfaceHandler
 from ..utils import *
-refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
+_refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
 
 
 class InterfaceBuilder(InterfaceHandler):

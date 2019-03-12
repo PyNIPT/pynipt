@@ -6,6 +6,7 @@ from .base import ProcessorBase
 from .base import InterfaceBase
 from paralexe import Manager
 import os
+import time
 import re
 
 # import sys
@@ -16,6 +17,7 @@ from ..utils import *
 #%% pandas display option setting
 pd.set_option("display.max_rows", int(config.get('Display', 'Max_Row')))
 pd.set_option("display.max_colwidth", int(config.get('Display', 'Max_Colwidth')))
+_refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
 
 
 #%% The class for handling dataset bucket
@@ -510,6 +512,12 @@ class ProcessorHandler(ProcessorBase):
 
                 # compose step code using idx and substep code
                 new_step_code = "{}{}".format(str(new_step_idx).zfill(2), new_substep_code)
+                if new_step_code in existing_codes:
+                    if title not in existing_titles:
+                        print(title, existing_titles)
+                        exc_msg = 'the step code had been used already.'
+                        self.logging('warn', exc_msg)
+                        raise Exception(exc_msg)
 
         # dir name
         new_step_dir = "{}_{}".format(new_step_code, title)
@@ -628,7 +636,7 @@ class InterfaceHandler(InterfaceBase):
 
     def _init_step(self, run_order, mode_idx):
         """hidden method for init_step to run on threading"""
-        # check if the init step is not first command user was executed
+        # check if the init step is not first command user was executed TODO: Freezing issues - need to improve method queue
 
         if run_order != 0:
             self.logging('warn', 'incorrect order, init_step must be the first method to be executed.',
@@ -642,6 +650,8 @@ class InterfaceHandler(InterfaceBase):
             while loop is True:
                 if self.step_code == self._procobj._waiting_list[0]:
                     loop = False
+                time.sleep(_refresh_rate)
+
 
         self._procobj.bucket.update()
         if mode_idx is not 2:
