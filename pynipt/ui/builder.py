@@ -36,6 +36,10 @@ class InterfaceBuilder(InterfaceHandler):
         else:
             self._schd = Scheduler(n_threads=n_threads)
 
+    @property
+    def threads(self):
+        return self._schd
+
     def init_step(self, title, suffix=None, idx=None, subcode=None, mode='processing'):
         """initiate step directory, this includes generating step code and creating the directory
 
@@ -221,6 +225,8 @@ class InterfaceBuilder(InterfaceHandler):
     def run(self):
         # submit job to scheduler
         run_order = self._update_run_order()
+        # link this object to the parents class
+        self._procobj._stepobjs[self.step_code] = self
         # add current step code to the step list
         daemon = self.get_daemon(self._run, run_order)
         # update daemon to monitor

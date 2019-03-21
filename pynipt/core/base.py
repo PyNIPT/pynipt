@@ -530,13 +530,13 @@ class ProcessorBase(object):
 
         handlers = []
 
-        # if hasattr(self.msi, 'client'):
-        #     for f in [debug_file, debug_file, stdout_file, stderr_file]:
-        #         handlers.append(logging.StreamHandler(self.msi.open(f, 'a')))
-        # else:
+        if hasattr(self.msi, 'client'):
+            for f in [debug_file, debug_file, stdout_file, stderr_file]:
+                handlers.append(logging.StreamHandler(self.msi.open(f, 'a')))
+        else:
             # For local logging
-        for f in [debug_file, debug_file, stdout_file, stderr_file]:
-            handlers.append(logging.FileHandler(f))
+            for f in [debug_file, debug_file, stdout_file, stderr_file]:
+                handlers.append(logging.FileHandler(f))
 
         def init_handlers(handler, level, format):
             handler.setLevel(level)

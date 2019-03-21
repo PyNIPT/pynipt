@@ -29,9 +29,8 @@ class Processor(ProcessorHandler):
         clear:                      remove all empty step dir
 
     Attributes:
-        progress_param
-        schd
-        summary
+        scheduler_param:            scheduler config parameters
+        summary:                    print out the summary of processor instance
 
     """
     def __init__(self, *args, **kwargs):
@@ -46,9 +45,13 @@ class Processor(ProcessorHandler):
         # install default interface in plugin folder
 
         # to control scheduling issues,
-        # self._scheduler = Scheduler(n_threads=n_threads)
         self._waiting_list = []
         self._processed_list = []
+        self._stepobjs = dict()
+
+    @property
+    def stepobjs(self):
+        return self._stepobjs
 
     @property
     def scheduler_param(self):
@@ -66,17 +69,6 @@ class Processor(ProcessorHandler):
 
     def __repr__(self):
         return self.summary
-
-    # @property
-    # def schd(self):
-    #     return self._scheduler
-
-    # def get_stdout(self, step_code):
-    #     if step_code not in self.schd.stdout.keys():
-    #         exc_msg = 'STDOUT of step [{}] is not on memory, please check Logs folder instead.'.format(step_code)
-    #         self.logging('warn', exc_msg)
-    #         raise Exception(exc_msg)
-    #     return self.schd.stdout[step_code]
 
     @property
     def summary(self):
@@ -114,8 +106,6 @@ class Processor(ProcessorHandler):
             for i, step in self._masked.items():
                 s.append("\t{}: {}".format(i, step))
         output = '\n'.join(s)
-        # if self.schd.queues is not None:
-        #     output = '{}\n\n{}'.format(output, self.schd.summary())
         return output
 
 

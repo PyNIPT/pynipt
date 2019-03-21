@@ -708,12 +708,13 @@ class InterfaceHandler(InterfaceBase):
                             dset = self._bucket(3, datatypes=input_path, **filter_dict)
                         else:
                             dset = self._bucket(1, pipelines=self._label, steps=input_path, **filter_dict)
-                    if num_inputset == 0:
-                        if self._multi_session is True:
-                            self._input_ref = {i:(finfo.Subject, finfo.Session) for i, finfo in dset}
-                        else:
-                            self._input_ref = {i:(finfo.Subject, None) for i, finfo in dset}
-                    self._input_set[label] = [finfo.Abspath for i, finfo in dset]
+                    if len(dset) > 0:
+                        if num_inputset == 0:
+                            if self._multi_session is True:
+                                self._input_ref = {i:(finfo.Subject, finfo.Session) for i, finfo in dset}
+                            else:
+                                self._input_ref = {i:(finfo.Subject, None) for i, finfo in dset}
+                        self._input_set[label] = [finfo.Abspath for i, finfo in dset]
                 else:
                     self._input_set[label] = list()
                     if isinstance(idx, int):
@@ -724,15 +725,17 @@ class InterfaceHandler(InterfaceBase):
                                         dset = self._bucket(0, datatypes=input_path,
                                                             subjects=sub, sessions=ses,
                                                             **filter_dict)
-                                        self._input_ref[len(self._input_set[label])] = (
-                                        dset[idx].Subject, dset[idx].Session)
-                                        self._input_set[label].append(dset[idx].Abspath)
+                                        if len(dset) > 0: # TODO: add logging
+                                            self._input_ref[len(self._input_set[label])] = (
+                                            dset[idx].Subject, dset[idx].Session)
+                                            self._input_set[label].append(dset[idx].Abspath)
                                 else:
                                     dset = self._bucket(0, datatypes=input_path,
                                                         subjects=sub, **filter_dict)
-                                    self._input_ref[len(self._input_set[label])] = (
-                                        dset[idx].Subject, None)
-                                    self._input_set[label].append(dset[idx].Abspath)
+                                    if len(dset) > 0:
+                                        self._input_ref[len(self._input_set[label])] = (
+                                            dset[idx].Subject, None)
+                                        self._input_set[label].append(dset[idx].Abspath)
                         else:
                             if mask is True:
                                 for sub in self._bucket.params[3].subjects:
@@ -741,15 +744,17 @@ class InterfaceHandler(InterfaceBase):
                                             dset = self._bucket(3, datatypes=input_path,
                                                                 subjects=sub, sessions=ses,
                                                                 **filter_dict)
-                                            self._input_ref[len(self._input_set[label])] = (
-                                                dset[idx].Subject, dset[idx].Session)
-                                            self._input_set[label].append(dset[idx].Abspath)
+                                            if len(dset) > 0:
+                                                self._input_ref[len(self._input_set[label])] = (
+                                                    dset[idx].Subject, dset[idx].Session)
+                                                self._input_set[label].append(dset[idx].Abspath)
                                     else:
                                         dset = self._bucket(3, datatypes=input_path,
                                                             subjects=sub, **filter_dict)
-                                        self._input_ref[len(self._input_set[label])] = (
-                                            dset[idx].Subject, None)
-                                        self._input_set[label].append(dset[idx].Abspath)
+                                        if len(dset) > 0:
+                                            self._input_ref[len(self._input_set[label])] = (
+                                                dset[idx].Subject, None)
+                                            self._input_set[label].append(dset[idx].Abspath)
                             else:
                                 for sub in self._bucket.params[1].subjects:
                                     if self._multi_session:
@@ -758,17 +763,19 @@ class InterfaceHandler(InterfaceBase):
                                                                 steps=input_path,
                                                                 subjects=sub, sessions=ses,
                                                                 **filter_dict)
-                                            self._input_ref[len(self._input_set[label])] = (
-                                                dset[idx].Subject, dset[idx].Session)
-                                            self._input_set[label].append(dset[idx].Abspath)
+                                            if len(dset) > 0:
+                                                self._input_ref[len(self._input_set[label])] = (
+                                                    dset[idx].Subject, dset[idx].Session)
+                                                self._input_set[label].append(dset[idx].Abspath)
                                     else:
                                         dset = self._bucket(1, pipelines=self._label,
                                                             steps=input_path,
                                                             subjects=sub,
                                                             **filter_dict)
-                                        self._input_ref[len(self._input_set[label])] = (
-                                            dset[idx].Subject, None)
-                                        self._input_set[label].append(dset[idx].Abspath)
+                                        if len(dset) > 0:
+                                            self._input_ref[len(self._input_set[label])] = (
+                                                dset[idx].Subject, None)
+                                            self._input_set[label].append(dset[idx].Abspath)
                     else:
                         self.logging('warn', 'inappropriate index for input data',
                                      method=method_name)
