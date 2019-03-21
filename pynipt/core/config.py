@@ -1,6 +1,7 @@
 import sys
 import os
 import shutil
+from ..utils import intensive_mkdir
 from datetime import date
 if sys.version_info[0] == 3:
     import configparser
@@ -58,6 +59,7 @@ cfg_path = os.path.join(os.path.expanduser("~"), '.pynipt', 'pyniptrc')
 config = configparser.RawConfigParser()
 
 if not os.path.exists(cfg_path):
+    intensive_mkdir(os.path.dirname(cfg_path))
     create_config_file(config, cfg_path)
 
 config.read(cfg_path)
