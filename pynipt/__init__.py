@@ -20,7 +20,7 @@ if sys.version_info[0] == 3:
 else:
     from urllib2 import urlopen as __urlopen
 
-__version__ = '0.0.2a2'
+__version__ = '0.0.2a3'
 
 # URLs for developer plugin modules
 __inter_plugin_url = 'https://gist.githubusercontent.com/dvm-shlee/' \
@@ -59,7 +59,7 @@ def update_default_plugin(module='all'):
     elif module == 'pipeline':
         __download_plugin(__pipe_plugin_url, __default_pipeline_path)
     else:
-        raise ModuleNotFoundError
+        raise IOError
 
     # remove cache files
     if sys.version_info[0] == 3:
@@ -71,6 +71,20 @@ def update_default_plugin(module='all'):
             os.unlink('{}c'.format(__default_interface_path))
         if os.path.exists('{}c'.format(__default_pipeline_path)):
             os.unlink('{}c'.format(__default_pipeline_path))
+
+
+def download_plugin_template(path=None):
+    if path is None:
+        path = os.curdir()
+    else:
+        if not os.path.exists(path):
+            from .utils import intensive_mkdir
+            intensive_mkdir(path)
+
+    gist_template = 'https://gist.github.com/dvm-shlee/8ac9f21829ad027f73e07079424ea9ce/raw/'
+    __download_plugin(''.join([gist_template, 'interface_template.py']), path)
+    __download_plugin(''.join([gist_template, 'pipeline_template.py']), path)
+    print('Download completed..')
 
 
 # create plugin folder if it does not exist.

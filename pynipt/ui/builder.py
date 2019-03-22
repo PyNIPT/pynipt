@@ -242,7 +242,12 @@ class InterfaceBuilder(InterfaceHandler):
             self._inspect_output()
             self._mngs = self._call_manager()
             for mng in self._mngs:
-                mng.schedule(self._schd, label=self.step_code)
+                try:
+                    mng.schedule(self._schd, label=self.step_code)
+                except:
+                    self.logging('warn', 'exception is occurred during job scheduling.'
+                                         'please double check if the arguments are correctly matched with command.',
+                                 method='run-[{}]'.format(self.step_code))
             self.logging('debug', 'job scheduled by the manager.'.format(self.step_code),
                          method='run-[{}]'.format(self.step_code))
             self._schd.submit(mode='background', use_label=True)
