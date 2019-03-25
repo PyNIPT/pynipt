@@ -71,9 +71,16 @@ def update_default_plugin(module='all'):
             os.unlink('{}c'.format(__default_interface_path))
         if os.path.exists('{}c'.format(__default_pipeline_path)):
             os.unlink('{}c'.format(__default_pipeline_path))
+    print('Update completed..')
 
 
 def download_plugin_template(path=None):
+    """ download plugin template into given path,
+    if the path is not given, then download on current path.
+
+    Args:
+        path(str):  path for download plugin template (default:None)
+    """
     if path is None:
         path = os.curdir()
     else:

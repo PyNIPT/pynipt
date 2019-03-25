@@ -1064,7 +1064,7 @@ class InterfaceHandler(InterfaceBase):
             if isinstance(value, list):
                 if quote is True:
                     value = ["'{}'".format(v) for v in value]
-            elif isinstance(value, str) or isinstance(value, int):
+            elif isinstance(value, str) or isinstance(value, int) or isinstance(value, float):
                 value = str(value)
                 if quote is True:
                     value = '"{}"'.format(value)
