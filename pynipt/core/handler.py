@@ -514,9 +514,12 @@ class ProcessorHandler(ProcessorBase):
                 new_step_code = "{}{}".format(str(new_step_idx).zfill(2), new_substep_code)
                 if new_step_code in existing_codes:
                     if title not in existing_titles:
-                        print(title, existing_titles)
-                        exc_msg = 'the step code had been used already.'
-                        self.logging('warn', exc_msg)
+                        exc_msg = ['the step code had been used already.\n']
+                        exc_msg.append('current_title: {}'.format(title))
+                        exc_msg.append('existing_title:')
+                        for t in existing_titles:
+                            exc_msg.append('\t{}'.format(t))
+                        self.logging('warn', '\n'.join(exc_msg))
                         raise Exception(exc_msg)
 
         # dir name

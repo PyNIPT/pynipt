@@ -25,14 +25,20 @@ else:
 
     def clear_output(): pass
 
+
 def display_html(message):
     return display(HTML(message))
+
 
 plugin_path = __config.get('Plugin', 'pipeline_plugin_path')
 _default_interface_path = __config.get('Plugin', 'interface_plugin_path')
 _default_pipeline_path = __config.get('Plugin', 'pipeline_plugin_path')
 _verbose_option = bool(__config.get('Preferences', 'verbose'))
 _logging_option = bool(__config.get('Preferences', 'logging'))
+
+_interface_loaded = False
+_pipelines_loaded = False
+_plugged_in_pipeline = []
 
 
 def plugin_interface(path):
@@ -47,14 +53,54 @@ def plugin_interface(path):
 def plugin_pipeline(path):
     if sys.version_info[0] == 3:
         from importlib.machinery import SourceFileLoader as __load_source
-        return __load_source('pipeline', path).load_module()
+        return __load_source('pipelines', path).load_module()
     else:
         from imp import load_source as __load_source
-        return __load_source('pipeline', path)
+        return __load_source('pipelines', path)
 
 
-Interface = plugin_interface(_default_interface_path)
-pipelines = plugin_pipeline(_default_pipeline_path)
+def load_plugin(interface_path=None, pipeline_path=None):
+    global Interface
+    global pipelines
+    global _interface_loaded
+    global _pipelines_loaded
+    global _plugged_in_pipeline
+
+    if interface_path is None:
+        if _interface_loaded is False:
+            Interface = plugin_interface(_default_interface_path)
+            _interface_loaded  = True
+        else:
+            if pipeline_path is None:
+                Interface = plugin_interface(_default_interface_path)
+    else:
+        InterfaceBase = plugin_interface(_default_interface_path)
+        InterfacePlugin = plugin_interface(interface_path)
+
+        class PlugIn(InterfaceBase, InterfacePlugin):
+            def __init__(self, *args, **kwargs):
+                super(PlugIn, self).__init__(*args, **kwargs)
+
+        Interface = PlugIn
+
+    if pipeline_path is None:
+        if _pipelines_loaded is False:
+            pipelines = plugin_pipeline(_default_pipeline_path)
+            if len(_plugged_in_pipeline) == 0:
+                _plugged_in_pipeline = dir(pipelines)
+            _pipelines_loaded = True
+        else:
+            pipelines = plugin_pipeline(_default_pipeline_path)
+            list_of_attr = dir(pipelines)
+            for att in list_of_attr:
+                if att not in _plugged_in_pipeline:
+                    delattr(pipelines, att)
+    else:
+        pipelines = plugin_pipeline(pipeline_path)
+
+
+def clear_plugin():
+    load_plugin()
 
 
 class Pipeline(object):
@@ -134,6 +180,11 @@ class Pipeline(object):
         self.selected = None
         self._stored_id = None
 
+    def get_filelist(self, stepcode):
+        if self.selected is not None:
+            step = self.bucket.params
+            pass
+
     @property
     def installed_packages(self):
         pipes = [pipe for pipe in dir(self._pipeobj) if '__' not in pipe if pipe[0] != '_'
@@ -141,6 +192,20 @@ class Pipeline(object):
         n_pipe = len(pipes)
         list_of_pipes = dict(zip(range(n_pipe), pipes))
         return list_of_pipes
+
+    def init_pipeline(self, title):
+        """Initiate package with given title
+
+        Args:
+            title:
+        """
+        self._bucket.update()
+        self._interface = Interface(self._bucket, title,
+                                    logger=self._logger,
+                                    n_threads=self._n_threads)
+        self._pipeline_title = title
+        if _verbose_option is True:
+            print('Pipeline [{}] is initiated without selecting pipeline package.'.format(title))
 
     def select_package(self, package_id, **kwargs):
         """Initiate package
@@ -156,21 +221,19 @@ class Pipeline(object):
         # convert package ID to package name
         if isinstance(package_id, int):
             self._stored_id = package_id
-            package_id = self.installed_packages[package_id]
-
-        if package_id in self.installed_packages.values():
-            self._interface = Interface(self._bucket, package_id,
-                                        logger=self._logger,
-                                        n_threads=self._n_threads)
-            command = 'self.selected = self._pipeobj.{}(self._interface'.format(package_id)
-            if kwargs:
-                command += ', **{})'.format('kwargs')
-            else:
-                command += ')'
-            exec(command)
-
+            self._pipeline_title = self.installed_packages[package_id]
         else:
             raise Exception
+
+        self._interface = Interface(self._bucket, self._pipeline_title,
+                                    logger=self._logger,
+                                    n_threads=self._n_threads)
+        command = 'self.selected = self._pipeobj.{}(self._interface'.format(package_id)
+        if kwargs:
+            command += ', **{})'.format('kwargs')
+        else:
+            command += ')'
+        exec(command)
 
         if _verbose_option is True:
             print('Description about this package:\n')
@@ -183,9 +246,8 @@ class Pipeline(object):
             print("\n".join(output))
 
     def check_progression(self):
-        if self.selected is not None:
-
-            param = self.selected.interface.scheduler_param
+        if self._interface is not None:
+            param = self._interface.scheduler_param
             queued_jobs = len(param['queue'])
             finished_jobs = len(param['done'])
             self._progressbar =  progressbar(total=queued_jobs + finished_jobs,
@@ -255,29 +317,6 @@ class Pipeline(object):
         if _verbose_option is True:
             exec('print(self.selected.pipe_{}.__doc__)'.format(self.selected.installed_pipelines[idx]))
         exec('self.selected.pipe_{}()'.format(self.selected.installed_pipelines[idx]))
-
-    def plugin(self, interface=None, pipeline=None):
-        """
-
-        Args:
-            interface(str):     file path for interface plugin
-            pipeline(str):      file path for pipeline plugin
-
-        Returns:
-
-        """
-        if interface is not None:   # TODO: interface is replaced with this command
-            global Interface
-            Interface = plugin_interface(interface)
-
-        if pipeline is not None:    # TODO: pipeline is added up with this command
-            global pipelines
-            pipelines = plugin_pipeline(pipeline)
-
-            if _verbose_option is True:
-                avails = ["\t{} : {}".format(*item) for item in self.installed_packages.items()]
-                output = ["\nList of installed pipeline packages:"] + avails
-                print("\n".join(output))
 
     @property
     def bucket(self):

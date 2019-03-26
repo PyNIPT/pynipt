@@ -4,6 +4,7 @@ from .ui import Bucket
 from .ui import InterfaceBuilder
 from .ui import PipelineBuilder
 from .ui import Processor
+from .ui.pipeline import load_plugin, clear_plugin
 
 from .core.config import cfg_path as __cfg_path, \
     create_config_file as __make_config, \
@@ -20,7 +21,7 @@ if sys.version_info[0] == 3:
 else:
     from urllib2 import urlopen as __urlopen
 
-__version__ = '0.0.2a3'
+__version__ = '0.0.2a5'
 
 # URLs for developer plugin modules
 __inter_plugin_url = 'https://gist.githubusercontent.com/dvm-shlee/' \
@@ -71,6 +72,7 @@ def update_default_plugin(module='all'):
             os.unlink('{}c'.format(__default_interface_path))
         if os.path.exists('{}c'.format(__default_pipeline_path)):
             os.unlink('{}c'.format(__default_pipeline_path))
+    load_plugin()
     print('Update completed..')
 
 
@@ -105,7 +107,32 @@ if not os.path.exists(__default_interface_path):
 if not os.path.exists(__default_pipeline_path):
     __download_plugin(__pipe_plugin_url, __default_pipeline_path)
 
+ui.pipeline.load_plugin()
+
 from .ui.pipeline import Pipeline
+
+
+def avail():
+
+    list_to_ignore = ['PipelineBuilder']
+    pipelines = [p for p in dir(ui.pipeline.pipelines) if p not in list_to_ignore and not p.startswith('_')]
+    print('[List of available pipeline packages]')
+    for p in sorted(pipelines):
+        print('\t{}'.format(p))
+
+    list_to_ignore = ['bucket', 'clear', 'close_step', 'destroy_step', 'get_daemon',
+                      'init_step', 'inspect_input', 'label', 'logging', 'mask_path',
+                      'path', 'prepare_package_dir', 'report_path', 'scheduler_param',
+                      'step_code_pattern', 'stepobjs', 'summary', 'temp_path', 'update',
+                      'update_attributes']
+    interfaces = [i for i in dir(ui.pipeline.Interface) if i not in list_to_ignore and not i.startswith('_')]
+
+    print('\n[List of available interfaces]')
+    for i in sorted(interfaces):
+        print('\t{}'.format(i))
+
+
+
 
 __all__ = ['Bucket',
            'Processor',

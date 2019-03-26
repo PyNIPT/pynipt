@@ -284,6 +284,8 @@ class InterfaceBuilder(InterfaceHandler):
                 self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
             self.logging('debug', '[{}]-removed from the waiting list'.format(self.step_code),
                          method='run')
+        # update executed folder
+        self._procobj.update()
 
 
 class PipelineBuilder(object):
