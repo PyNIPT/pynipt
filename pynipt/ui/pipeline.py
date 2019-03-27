@@ -171,11 +171,6 @@ class Pipeline(object):
         self.selected = None
         self._stored_id = None
 
-    # def get_dataset(self, stepcode):
-    #     if self.selected is not None:
-    #         step = self.bucket.params
-    #         pass
-
     @property
     def installed_packages(self):
         pipes = [pipe for pipe in dir(self._pipeobj) if '__' not in pipe if pipe[0] != '_'
