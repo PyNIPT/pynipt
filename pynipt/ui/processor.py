@@ -47,11 +47,11 @@ class Processor(ProcessorHandler):
         # to control scheduling issues,
         self._waiting_list = []
         self._processed_list = []
-        self._stepobjs = dict()
+        self._running_obj = dict()
 
     @property
-    def stepobjs(self):
-        return self._stepobjs
+    def running_obj(self):
+        return self._running_obj
 
     @property
     def scheduler_param(self):

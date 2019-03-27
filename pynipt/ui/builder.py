@@ -226,7 +226,7 @@ class InterfaceBuilder(InterfaceHandler):
         # submit job to scheduler
         run_order = self._update_run_order()
         # link this object to the parents class
-        self._procobj._stepobjs[self.step_code] = self
+        self._procobj._running_obj[self.step_code] = self
         # add current step code to the step list
         daemon = self.get_daemon(self._run, run_order)
         # update daemon to monitor

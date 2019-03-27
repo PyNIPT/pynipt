@@ -49,8 +49,6 @@ class BucketHandler(BucketBase):
         if client is None:
             self.msi = os
         else:
-            # from miresi import SSHInterface
-            # self.msi = SSHInterface(client)
             self.msi = client.open_interface()
             self._remote = True
         if path is not None:
@@ -219,7 +217,6 @@ class BucketHandler(BucketBase):
                             result.append([finfo for finfo in dataset \
                                            if finfo._asdict()[attributes].endswith(flt)])
                     elif keyword == 'regex':
-                        import re
                         for flt in filters:
                             pattern = re.compile(flt)
                             result.append([finfo for finfo in dataset \
@@ -229,7 +226,6 @@ class BucketHandler(BucketBase):
                             result.append([finfo for finfo in dataset \
                                            if flt in finfo._asdict()[attributes].split('.')[0]])
                 else:
-                    import re
                     for flt in filters:
                         pattern = re.compile(flt)
                         result.append([finfo for finfo in dataset \
@@ -1095,7 +1091,6 @@ class InterfaceHandler(InterfaceBase):
                 self.logging('warn', exc_msg, method=method_name)
 
     def _parse_placeholder(self, manager, command):
-        import re
         prefix, surfix = manager.decorator
         raw_prefix = ''.join([r'\{}'.format(chr) for chr in prefix])
         raw_surfix = ''.join([r'\{}'.format(chr) for chr in surfix])

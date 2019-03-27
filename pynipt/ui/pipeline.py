@@ -13,21 +13,12 @@ notebook_env = False
 
 if get_ipython() and len(get_ipython().config.keys()):
     from tqdm import tqdm_notebook as progressbar
-    from ipywidgets.widgets import HTML as HTML
     from IPython.display import display
     notebook_env = True
 
 else:
     from pprint import pprint as display
     from tqdm import tqdm as progressbar
-
-    def HTML(message): return message
-
-    def clear_output(): pass
-
-
-def display_html(message):
-    return display(HTML(message))
 
 
 plugin_path = __config.get('Plugin', 'pipeline_plugin_path')
@@ -180,10 +171,10 @@ class Pipeline(object):
         self.selected = None
         self._stored_id = None
 
-    def get_filelist(self, stepcode):
-        if self.selected is not None:
-            step = self.bucket.params
-            pass
+    # def get_dataset(self, stepcode):
+    #     if self.selected is not None:
+    #         step = self.bucket.params
+    #         pass
 
     @property
     def installed_packages(self):
@@ -228,7 +219,7 @@ class Pipeline(object):
         self._interface = Interface(self._bucket, self._pipeline_title,
                                     logger=self._logger,
                                     n_threads=self._n_threads)
-        command = 'self.selected = self._pipeobj.{}(self._interface'.format(package_id)
+        command = 'self.selected = self._pipeobj.{}(self._interface'.format(self._pipeline_title)
         if kwargs:
             command += ', **{})'.format('kwargs')
         else:
@@ -240,7 +231,7 @@ class Pipeline(object):
             print(self.selected.__init__.__doc__)
             print("The pipeline package '{}' is selected.\n"
                   "Please double check if all parameters are "
-                  "correctly provided before run this pipline".format(package_id))
+                  "correctly provided before run this pipline".format(self._pipeline_title))
             avails = ["\t{} : {}".format(*item) for item in self.selected.installed_pipelines.items()]
             output = ["List of available pipelines in selected package:"] + avails
             print("\n".join(output))
@@ -325,3 +316,13 @@ class Pipeline(object):
     @property
     def interface(self):
         return self._interface
+
+    def get_workers(self, step_code):
+        queues = self._interface.running_obj[step_code].threads.queues
+        if queues is not None:
+            if len(queues.keys()) > 1:
+                return queues
+            else:
+                return queues[queues.keys()[0]]
+        else:
+            return None
