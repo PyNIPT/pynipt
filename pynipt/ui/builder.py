@@ -272,7 +272,7 @@ class InterfaceBuilder(InterfaceHandler):
                     if workers[j] is None:
                         self.logging('stderr', 'None\n')
                     else:
-                        self.logging('stderr', '\n{}'.format('\n'.join(workers[j])))
+                        self.logging('stderr', '\n{}'.format(u'\n'.join(workers[j]).encode('utf-8')))
 
             # step code update
             last_step_code = self._procobj._waiting_list[0]
@@ -287,6 +287,23 @@ class InterfaceBuilder(InterfaceHandler):
         # update executed folder
         self._procobj.update()
 
+    def get_inputs(self, label):
+        input_ready = False
+        while input_ready is False:
+            try:
+                inputs = self._input_set[label]
+                if isinstance(inputs, str):   # case of input method == 1
+                    inputs = self._input_set[label].split(self._input_spacer)
+                    input_ready=True
+                elif isinstance(inputs, list):
+                    input_ready=True
+                return inputs
+            except:
+                time.sleep(_refresh_rate)
+        return
+
+    def get_input_ref(self):
+        return self._input_ref
 
 class PipelineBuilder(object):
     """ The class for building a pipeline plugin

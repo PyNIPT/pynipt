@@ -321,3 +321,36 @@ class Pipeline(object):
                 return queues[queues.keys()[0]]
         else:
             return None
+
+    def get_builder(self):
+        if self.interface is not None:
+            from .builder import InterfaceBuilder
+            return InterfaceBuilder(self.interface)
+        else:
+            return None
+
+    def get_dset(self, step_code, ext='nii.gz', regex=None):
+        if self.interface is not None:
+            proc = self.interface
+            proc.update()
+            filter = dict(pipelines=proc.label,
+                          ext=ext)
+            if regex is not None:
+                filter['regex'] = regex
+            step = proc._get_step_dir(step_code)
+            if step_code in proc._executed.keys():
+                dataclass = 1
+                filter['steps'] = step
+            elif step_code in proc._reported.keys():
+                dataclass = 2
+                filter['reports'] = step
+            elif step_code in proc._masked.keys():
+                dataclass = 3
+                filter['datatypes'] = step
+            else:
+                return None
+            return self.bucket(dataclass, copy=True, **filter)
+        else:
+            return None
+
+

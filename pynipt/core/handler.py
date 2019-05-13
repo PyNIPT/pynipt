@@ -791,7 +791,10 @@ class InterfaceHandler(InterfaceBase):
                                             **filter_dict)
                 if num_inputset == 0:
                     self._input_ref = dict()
-                self._input_ref[label] = filter_dict
+                if self._multi_session:
+                    self._input_ref[label] = [(finfo.Subject, finfo.Session) for i, finfo in dset ]
+                else:
+                    self._input_ref[label] = [(finfo.Subject, None) for i, finfo in dset]
                 list_of_inputs = [finfo.Abspath for i, finfo in dset]
                 spacer = ' '
                 if join_modifier is not None:
@@ -806,6 +809,7 @@ class InterfaceHandler(InterfaceBase):
                         self.logging('warn', 'inappropriate join_modifier used',
                                      method=method_name)
                 self._input_set[label] = spacer.join(list_of_inputs)
+                self._input_spacer = spacer
             else:
                 exc_msg = 'method selection is out of range.'
                 self.logging('warn', exc_msg, method=method_name)

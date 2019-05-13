@@ -48,6 +48,7 @@ class Processor(ProcessorHandler):
         self._waiting_list = []
         self._processed_list = []
         self._running_obj = dict()
+        self.update()
 
     @property
     def running_obj(self):

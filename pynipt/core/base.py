@@ -751,6 +751,7 @@ class InterfaceBase(object):
         self._var_set = dict()
         self._temporary_set = dict()
         self._cmd_set = dict()
+        self._input_spacer = None
 
     def _init_attr_for_execution(self):
         # attributes for controlling method execution
