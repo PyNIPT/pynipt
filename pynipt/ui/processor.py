@@ -1,6 +1,6 @@
 from ..core.base import config as __config, dc
 from ..core.handler import ProcessorHandler
-
+from collections import OrderedDict
 default_n_threads = int(__config.get('Preferences', 'number_of_thread'))
 
 
@@ -47,11 +47,13 @@ class Processor(ProcessorHandler):
         # to control scheduling issues,
         self._waiting_list = []
         self._processed_list = []
-        self._running_obj = dict()
+        self._running_obj = OrderedDict()
         self.update()
 
     @property
     def running_obj(self):
+        """This property is the placeholder to save InterfaceBuilder instance.
+        """
         return self._running_obj
 
     @property
@@ -62,6 +64,7 @@ class Processor(ProcessorHandler):
                     n_threads=self._n_threads)
 
     def get_daemon(self, func, *args, **kwargs):
+        """Generate daemon for scheduling internal processing step for interface job"""
         import threading
         daemon = threading.Thread(target=func, args=args, kwargs=kwargs)
         daemon.daemon = True

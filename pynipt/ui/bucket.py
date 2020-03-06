@@ -10,13 +10,13 @@ class Bucket(BucketHandler):
     This class contains user friendly print out function for summarizing information for the dataset
     """
 
-    def __init__(self, path, client=None):
-        super(Bucket, self).__init__(path, client)
+    def __init__(self, path):
+        super(Bucket, self).__init__(path)
         self._idx = 0
 
     def __repr__(self):
         if len(self) == 0:
-            return 'Empty bucket..'
+            return '** Empty bucket..'
         else:
             return self.summary
 
@@ -40,7 +40,7 @@ class Bucket(BucketHandler):
 
     def __iter__(self):
         if self._check_empty(self._idx):
-            raise Exception('Empty bucket')
+            raise Exception('** Empty bucket')
         else:
             for row in self.df.iterrows():
                 yield row

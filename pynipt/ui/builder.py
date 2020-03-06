@@ -1,17 +1,19 @@
-import os
-import re
+# import os
+# import re
+# from ..utils import *
 import time
-from paralexe import Scheduler
+from paralexe import Scheduler, Manager, FuncManager
+import time
 
 from ..core.base import config
 from ..core.handler import InterfaceHandler
-from ..utils import *
 _refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
-
+_timeout = float(config.get('Preferences', 'timeout'))
 
 class InterfaceBuilder(InterfaceHandler):
-    """ The class for building a interface plugin
-    # TODO: update docstring, find better way than using daemon
+    """ for building a interface plugin
+    # TODO: Docstring update is needed, also need to find better way to operate pipeline on thread,
+    # TODO: UserInterface need to be more intuitive. (e.g. need to have a method to test interface)
 
     Methods:
         init_step:
@@ -31,13 +33,18 @@ class InterfaceBuilder(InterfaceHandler):
         self._init_attr_for_inspection()
         self._init_attr_for_execution()
         if n_threads is None:
-            # Initiate scheduler
-            self._schd = Scheduler(n_threads=processor.scheduler_param['n_threads'])
+            self._n_threads = processor.scheduler_param['n_threads']
         else:
-            self._schd = Scheduler(n_threads=n_threads)
+            self._n_threads = n_threads
+        # Initiate scheduler
+        self._schd = Scheduler(n_threads=self._n_threads)
+
+    def reset(self):
+        self.__init__(self._procobj, n_threads=self._n_threads)
 
     @property
     def threads(self):
+        """ return the scheduler object """
         return self._schd
 
     def init_step(self, title, suffix=None, idx=None, subcode=None, mode='processing'):
@@ -56,6 +63,7 @@ class InterfaceBuilder(InterfaceHandler):
             Exception:      if wrong mode are inputted
 
         """
+        self.reset()
         run_order = self._update_run_order()
         # add current step code to the step list
 
@@ -70,8 +78,8 @@ class InterfaceBuilder(InterfaceHandler):
             if self.step_code not in self._procobj._waiting_list:
                 if self.step_code not in self._procobj._processed_list:
                     self._procobj._waiting_list.append(self.step_code)
-                    self.logging('debug', '[{}] is added waiting list.'.format(self.step_code),
-                                 method='init_step')
+                    self.logging('debug', 'added waiting list.',
+                                 method='init_step-[{}]'.format(self.step_code))
                 else:
                     # check if the current step had been processed properly
                     self._procobj.update()
@@ -80,23 +88,23 @@ class InterfaceBuilder(InterfaceHandler):
                             3: self._procobj._masked, }
                     if self.step_code in base[mode_dict[mode]].keys():
                         self.logging('debug',
-                                     '[{}] has been processed, \n'
-                                     'so this step will not be executed.'.format(self.step_code),
-                                     method='init_step')
+                                     'has been processed, \n'
+                                     'so this step will not be executed.',
+                                     method='init_step-[{}]'.format(self.step_code))
                     else:
                         self._procobj._processed_list.remove(self.step_code)
                         self._procobj._waiting_list.append(self.step_code)
                         self.logging('debug',
-                                     '[{}] has been processed but its empty now. \n'
-                                     'so it is added waiting list again.'.format(self.step_code),
-                                     method='init_step')
+                                     ' has been processed but its empty now. \n'
+                                     'so it is added waiting list again.',
+                                     method='init_step-[{}]'.format(self.step_code))
 
             else:
-                self.logging('debug', '[{}] is added waiting list.'.format(self.step_code),
-                             method='init_step')
+                self.logging('debug', ' is added waiting list.',
+                             method='init_step-[{}]'.format(self.step_code))
         else:
-            exc_msg = '[{}] is not an available mode.'.format(mode)
-            self.logging('warn', exc_msg, method='init_step')
+            exc_msg = '"{}" is not an available mode.'.format(mode)
+            self.logging('warn', exc_msg, method='init_step-[{}]'.format(self.step_code))
 
         # self._init_step(mode_dict[mode])
         daemon = self.get_daemon(self._init_step, run_order, mode_dict[mode])
@@ -105,7 +113,7 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_input(self, label, input_path, filter_dict=None, method=0, mask=False, idx=None, join_modifier=None):
-        """set the input with filename filter, data can be collected from dataset path or working path,
+        """this method sets the input with filename filter, data can be collected from dataset path or working path,
         as well as masking path if mask is set to True.
         At least one input path need to be set for building interface.
 
@@ -124,12 +132,15 @@ class InterfaceBuilder(InterfaceHandler):
                                     available keys={'contains', 'ignore', 'ext', 'regex', # for filename
                                                     'subjects', 'sessions}                # for select specific group
             method (int):           0 - run command for the single master file to generate single master output
-                                    1 - set multiple files as single input to generate single master output
+                                    1 - set multiple files as input to generate single master output
             mask(bool):             True if input is mask file
-            idx(int):               file order index to pick only one file as input across subjects or sessions
-            join_modifier(dict):    can be used when method=1. to alter the way listing the set of inputs
+            idx(int):               index of the filtered dataset in order to pick one file as input
+                                    across subjects or sessions.
+            join_modifier(dict):    can be used when method=1. this option can be used to alter the way of
+                                    listing the set of inputs.
                                     available keys={'prefix', 'suffix', # too add additional string on input paths
-                                                    'spacer'}           # use given spacer instead single space (e.g. ',' or '\t')
+                                                    'spacer'}           # use given spacer between set of inputs
+                                                                          (e.g. ',' or '\t') default is single space
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -146,9 +157,9 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_output(self, label, prefix=None, suffix=None, modifier=None, ext=None):
-        """method to set output, if no input prior to this method, this method will raise error.
-        For input method cases 1 and 2, the output filename will be set as [subject]
-        and [subject_session] respectively, this cases, extension need to be specified.
+        """This method will set output, if no input prior to this method, it will raise error.
+        For the case of input methods 1 and 2, the output filename will be set as [subject]
+        and [subject_session], respectively, and extension must be specified.
 
         Args:
             label(str):             output place-holder for command template,
@@ -167,8 +178,14 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def check_output(self, label='output', prefix=None, suffix=None, ext=None):
-        """generate output filter to prevent execution if the output file is already exists.
+    @property
+    def check_output(self):
+        # TODO: need to delete after fix all default plugin
+        # (this is for backward compatibility)
+        return self.set_output_checker
+
+    def set_output_checker(self, label='output', prefix=None, suffix=None, ext=None):
+        """This method generates output filter to prevent execution if the output file is already exists.
 
         Args:
             label(str):     main output placeholder on command template
@@ -178,7 +195,7 @@ class InterfaceBuilder(InterfaceHandler):
         """
         run_order = self._update_run_order()
         # add current step code to the step list
-        daemon = self.get_daemon(self._check_output, run_order, label,
+        daemon = self.get_daemon(self._set_output_checker, run_order, label,
                                  prefix=prefix, suffix=suffix, ext=ext)
         # update daemon to monitor
         self._daemons[run_order] = daemon
@@ -222,17 +239,24 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def run(self):
+    def set_func(self, func):
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_func, run_order, func)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def run(self, mode=None):
         # submit job to scheduler
         run_order = self._update_run_order()
         # link this object to the parents class
         self._procobj._running_obj[self.step_code] = self
         # add current step code to the step list
-        daemon = self.get_daemon(self._run, run_order)
+        daemon = self.get_daemon(self._run, run_order, mode=mode)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def _run(self, run_order):
+    def _run(self, run_order, mode=None):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
@@ -240,52 +264,84 @@ class InterfaceBuilder(InterfaceHandler):
             self._wait_my_turn(run_order, 'running interface command..', method='run') # wait until previous command is finished.
             # command process start from here
             self._inspect_output()
-            self._mngs = self._call_manager()
+            if mode == 'python':
+                self._mngs = self._call_func_manager()
+            else:
+                self._mngs = self._call_manager()
             for mng in self._mngs:
                 try:
                     mng.schedule(self._schd, label=self.step_code)
                 except:
-                    self.logging('warn', 'exception is occurred during job scheduling.'
-                                         'please double check if the arguments are correctly matched with command.',
+                    self.logging('warn', 'exception is occurred during job scheduling.',
                                  method='run-[{}]'.format(self.step_code))
-            self.logging('debug', 'job scheduled by the manager.'.format(self.step_code),
+            self.logging('debug', 'processing scheduled.'.format(self.step_code),
                          method='run-[{}]'.format(self.step_code))
             self._schd.submit(mode='background', use_label=True)
             self._schd.join() # because foreground option cannot check the status
             # command process end here
 
+            inspect_result = self._inspect_run()
             # update dataset bucket
-            self.logging('debug', 'update dataset bucket.', method='run-[{}]'.format(self.step_code))
+            self.logging('debug', 'updating dataset bucket.', method='run-[{}]'.format(self.step_code))
             self._bucket.update()
 
+            if inspect_result:
+                self.logging('warn', 'missing output file(s).', method='run-[{}]'.format(self.step_code))
             # parse stdout and stderr
             self.logging('debug', 'collect STDOUT from workers.', method='run-[{}]'.format(self.step_code))
+
             for i, workers in self._schd.stdout.items():
                 for j in sorted(workers.keys()):
                     if workers[j] is None:
                         self.logging('stdout', 'None\n')
                     else:
-                        self.logging('stdout', '\n{}'.format('\n'.join(workers[j])))
+                        # self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j]).encode('utf-8')))
+                        self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j])))
             self.logging('debug', 'collect STDERR from workers.', method='run-[{}]'.format(self.step_code))
+
             for i, workers in self._schd.stderr.items():
                 for j in sorted(workers.keys()):
                     if workers[j] is None:
                         self.logging('stderr', 'None\n')
                     else:
-                        self.logging('stderr', '\n{}'.format(u'\n'.join(workers[j]).encode('utf-8')))
+                        self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
+                        # self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j]).encode('utf-8')))
 
             # step code update
-            last_step_code = self._procobj._waiting_list[0]
-            if last_step_code != self.step_code:
-                self.logging('warn', '[{}]-something got wrong, step code missmatch, '
-                                     'which can cause serious problem'.format(self.step_code),
-                             method='run')
-            else:
-                self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
-            self.logging('debug', '[{}]-removed from the waiting list'.format(self.step_code),
-                         method='run')
+            self.clear()
+            # last_step_code = self._procobj._waiting_list[0]
+            # if last_step_code != self.step_code:
+            #     self.logging('warn', '** FATAL ERROR ** step code mismatch.',
+            #                  method='run-[{}]'.format(self.step_code))
+            # else:
+            #     # del self._procobj._running_obj[self.step_code]
+            #     self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
+            # self.logging('debug', 'processed.',
+            #              method='run-[{}]'.format(self.step_code))
         # update executed folder
         self._procobj.update()
+
+    @property
+    def waiting_steps(self):
+        return self._procobj._waiting_list
+
+    @property
+    def processed_steps(self):
+        return self._procobj._processed_list
+
+    def remove_from_waitinglist(self):
+       self.clear()
+
+    def clear(self):
+        if self.step_code is not None:
+            last_step_code = self._procobj._waiting_list[0]
+            if last_step_code != self.step_code:
+                self.logging('warn', '** FATAL ERROR ** step code mismatch.',
+                             method='run-[{}]'.format(self.step_code))
+            else:
+                self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
+            self.logging('debug', 'processed.',
+                         method='run-[{}]'.format(self.step_code))
 
     def get_inputs(self, label):
         input_ready = False
@@ -304,6 +360,77 @@ class InterfaceBuilder(InterfaceHandler):
 
     def get_input_ref(self):
         return self._input_ref
+
+    def run_manually(self, args, mode=None):
+        loop = True
+        start = time.time()
+        managers = []
+        if mode == 'python':
+            while loop:
+                time.sleep(_refresh_rate)
+                if len(self._func_set.keys()) == 0:
+                    if time.time() - start < _timeout:
+                        pass
+                    else:
+                        raise Exception('[{}]-no func found'.format(self.step_code))
+                else:
+                    loop = False
+            for j, func in sorted(self._func_set.items()):
+                mng = FuncManager()
+                func_kwargs = self._parse_func_kwargs(func)
+                print('[{}]-arguments in given function: [{}].'.format(self.step_code, list(func_kwargs)))
+                mng.set_func(func)
+                for kw in func_kwargs:
+                    for label, value in args.items():
+                        if kw in label:
+                            mng.set_arg(label=label, args=value)
+                managers.append(mng)
+        else:
+            while loop:
+                time.sleep(_refresh_rate)
+                if len(self._cmd_set.keys()) == 0:
+                    if time.time() - start < _timeout:
+                        pass
+                    else:
+                        raise Exception('[{}]-no command found'.format(self.step_code))
+                else:
+                    loop = False
+
+            for i, cmd in sorted(self._cmd_set.items()):
+                mng = Manager()
+                placeholders = self._parse_placeholder(mng, cmd)
+                print('[{}]-placeholder in command template: [{}].'.format(self.step_code,
+                                                                           list(placeholders)))
+                mng.set_cmd(cmd)
+                for ph in placeholders:
+                    for label, value in args.items():
+                        if ph in label:
+                            mng.set_arg(label=label, args=value)
+                managers.append(mng)
+        for mng in managers:
+            try:
+                mng.schedule(self._schd, label=self.step_code)
+            except:
+                raise Exception('[{}]-exception is occurred during job scheduling.'.format(self.step_code))
+
+        print('[{}]-processing scheduled.'.format(self.step_code))
+        self._schd.submit(use_label=True)
+
+        for i, workers in self._schd.stdout.items():
+            for j in sorted(workers.keys()):
+                if workers[j] is None:
+                    print('stdout', 'None\n')
+                else:
+                    # print('stdout', '\n  {}'.format('\n  '.join(workers[j]).encode('utf-8')))
+                    print('stdout', '\n  {}'.format('\n  '.join(workers[j])))
+        for i, workers in self._schd.stderr.items():
+            for j in sorted(workers.keys()):
+                if workers[j] is None:
+                    print('stderr', 'None\n')
+                else:
+                    # print('stderr', '\n  {}'.format(u'\n  '.join(workers[j]).encode('utf-8')))
+                    print('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
+
 
 class PipelineBuilder(object):
     """ The class for building a pipeline plugin

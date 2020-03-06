@@ -4,10 +4,10 @@ from .base import dc
 from .base import BucketBase
 from .base import ProcessorBase
 from .base import InterfaceBase
-from paralexe import Manager
+from paralexe import Manager, FuncManager
 import os
-import time
 import re
+import time
 
 # import sys
 import warnings
@@ -32,7 +32,6 @@ class BucketHandler(BucketBase):
 
     Args:
         path (str): project folder.
-        client (:obj:'Client', optional): remote client instance.
 
     Attributes:
         columns:
@@ -43,21 +42,16 @@ class BucketHandler(BucketBase):
     Todo:
         Need to update doctrings.
     """
-    def __init__(self, path, client=None):
+    def __init__(self, path):
         super(BucketHandler, self).__init__()
         self.__initiate_handler_attributes()
-        if client is None:
-            self.msi = os
-        else:
-            self.msi = client.open_interface()
-            self._remote = True
+        self.msi = os
         if path is not None:
             self.set_path(path)
         else:
             pass
 
     def __initiate_handler_attributes(self):
-        self._remote = False
         self._filtered_dataset = {i: None for i in range(len(dc))}
         self._filter_params = {i: None for i in range(len(dc))}
         self._fname_keys = ['contain', 'ignore', 'ext', 'regex']
@@ -516,7 +510,7 @@ class ProcessorHandler(ProcessorBase):
                         for t in existing_titles:
                             exc_msg.append('\t{}'.format(t))
                         self.logging('warn', '\n'.join(exc_msg))
-                        raise Exception(exc_msg)
+                        raise Exception('\n'.join(exc_msg))
 
         # dir name
         new_step_dir = "{}_{}".format(new_step_code, title)
@@ -583,7 +577,7 @@ class ProcessorHandler(ProcessorBase):
         for step_code in self._existing_report_dir.keys():
             self.close_step(step_code, mode='reporting')
 
-    def destroy_step(self, step_code, mode='processing', verbose=True):
+    def destroy_step(self, step_code, mode='processing'):
         """delete the step folder if folder is empty.
 
                 Args:
@@ -603,7 +597,7 @@ class ProcessorHandler(ProcessorBase):
             step_path = self.msi.path.join(self.mask_path,
                                            step_dir)
         else:
-            exc_msg = '[{}] is not available mode.'.format(mode)
+            exc_msg = '[{}] is not available value for the mode.'.format(mode)
             self.logging('warn', exc_msg)
             raise Exception(exc_msg)
 
@@ -612,17 +606,13 @@ class ProcessorHandler(ProcessorBase):
                 self.msi.rmdir(step_path)
                 self.logging('debug', '[{}] folder is deleted.'.format(step_dir))
             else:
-                if hasattr(self.msi, 'client'):
-                    exc_msg = 'Destroying step dir cannot be performed on remote mode.'.format(step_dir)
-                    self.logging('warn', exc_msg)
-                    raise Exception
-                else:
-                    import shutil
-                    shutil.rmtree(step_path)
-                    self.logging('debug', '[{}] folder contained data, but now it is destroyed.'.format(step_dir))
+                import shutil
+                shutil.rmtree(step_path)
+                self.logging('debug', '[{}] folder contained data, but now it is destroyed.'.format(step_dir))
         self.update()
 
     def update(self):
+        self.bucket.update()
         self._parse_existing_subdir()
         self._parse_executed_subdir()
 
@@ -634,11 +624,11 @@ class InterfaceHandler(InterfaceBase):
         super(InterfaceHandler, self).__init__()
 
     def _init_step(self, run_order, mode_idx):
-        """hidden method for init_step to run on threading"""
-        # check if the init step is not first command user was executed TODO: Freezing issues - need to improve method queue
-
+        """hidden method for init_step to run on the thread
+        """
+        # check if the init step is not first command user was executed
         if run_order != 0:
-            self.logging('warn', 'incorrect order, init_step must be the first method to be executed.',
+            self.logging('warn', 'init_step must be perform first for building command interface.',
                          method='init_step')
 
         if len(self._procobj._waiting_list) is 0:
@@ -679,7 +669,7 @@ class InterfaceHandler(InterfaceBase):
                     self.logging('warn', exc_msg, method=method_name)
                 else:
                     if label in self._input_set.keys():
-                        exc_msg = 'the label have been assigned already.'
+                        exc_msg = 'duplicated label.'
                         self.logging('warn', exc_msg, method=method_name)
             else:
                 self._input_method = method
@@ -689,7 +679,7 @@ class InterfaceHandler(InterfaceBase):
             if filter_dict is None:
                 filter_dict = dict()
             else:
-                exc_msg = 'insufficient filterdict.'
+                exc_msg = 'insufficient filter_dict.'
                 if isinstance(filter_dict, dict):
                     for key in filter_dict.keys():
                         if key not in self._bucket._fname_keys:
@@ -699,7 +689,7 @@ class InterfaceHandler(InterfaceBase):
 
             if self._input_method == 0:
                 if idx is None:
-                    # point to point input and output match
+                    # point to point matching between input and output
                     if input_path in self._bucket.params[0].datatypes:
                         dset = self._bucket(0, datatypes=input_path, **filter_dict)
                     else:
@@ -724,7 +714,7 @@ class InterfaceHandler(InterfaceBase):
                                         dset = self._bucket(0, datatypes=input_path,
                                                             subjects=sub, sessions=ses,
                                                             **filter_dict)
-                                        if len(dset) > 0: # TODO: add logging
+                                        if len(dset) > 0:
                                             self._input_ref[len(self._input_set[label])] = (
                                             dset[idx].Subject, dset[idx].Session)
                                             self._input_set[label].append(dset[idx].Abspath)
@@ -805,10 +795,15 @@ class InterfaceHandler(InterfaceBase):
                             list_of_inputs = ["{}{}".format(f, join_modifier['prefix']) for f in list_of_inputs]
                         if 'spacer' in join_modifier.keys():
                             spacer = join_modifier['spacer']
+                    elif join_modifier is False:
+                        spacer = None
                     else:
                         self.logging('warn', 'inappropriate join_modifier used',
                                      method=method_name)
-                self._input_set[label] = spacer.join(list_of_inputs)
+                if spacer is not None:
+                    self._input_set[label] = spacer.join(list_of_inputs)
+                else:
+                    self._input_set[label] = [list_of_inputs]
                 self._input_spacer = spacer
             else:
                 exc_msg = 'method selection is out of range.'
@@ -826,7 +821,7 @@ class InterfaceHandler(InterfaceBase):
             method_name = 'set_static_input'
 
             if self._main_input is None:
-                exc_msg = 'Cannot find input set, run set_input method first.'
+                exc_msg = 'no prior input set, run "set_input" method first.'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._inspect_label(label, method_name)
@@ -834,7 +829,7 @@ class InterfaceHandler(InterfaceBase):
             if filter_dict is None:
                 filter_dict = dict()
             else:
-                exc_msg = 'insufficient filterdict.'
+                exc_msg = 'insufficient filter_dict.'
                 if isinstance(filter_dict, dict):
                     for key in filter_dict.keys():
                         if key not in self._bucket._fname_keys:
@@ -843,7 +838,7 @@ class InterfaceHandler(InterfaceBase):
                     self.logging('warn', exc_msg, method=method_name)
 
             if self._input_method is not 0:
-                exc_msg = 'static_input is only allowed to use for input_method=0'
+                exc_msg = 'static_input is only allowed only for input_method=0'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._input_set[label] = list()
@@ -881,6 +876,11 @@ class InterfaceHandler(InterfaceBase):
                     self._input_set[label].append(dset[idx].Abspath)
             self._report_status(run_order)
 
+    def set_errterm(self, error_term):
+        """Set terms to indicate error condition
+        """
+        self._errterm = error_term
+
     def _set_output(self, run_order, label, modifier, prefix, suffix, ext):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
@@ -891,7 +891,7 @@ class InterfaceHandler(InterfaceBase):
             method_name = 'set_output'
             input_name = self._main_input
             if self._main_input is None:
-                exc_msg = 'Cannot find input set, run set_input method first.'
+                exc_msg = 'no prior input set, run "set_input" method first.'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._inspect_label(label, method_name)
@@ -903,26 +903,29 @@ class InterfaceHandler(InterfaceBase):
                             filename = change_fname(filename, f, rep)
                     elif isinstance(modifier, str):
                         if self._input_method is not 1:
-                            exc_msg = 'Single output name assignment only available for input method=1'
+                            exc_msg = 'single output name assignment only available for input method=1'
                             self.logging('warn', exc_msg, method=method_name)
                         else:
                             filename = modifier
                     else:
-                        exc_msg = 'wrong modifier!'
+                        exc_msg = 'wrong modifier.'
                         self.logging('warn', exc_msg, method=method_name)
                     fn, fext = split_ext(filename)
+                    if fext is None:
+                        fext = 'dir'
                     if prefix is not None:
                         fn = '{}{}'.format(prefix, fn)
                     if suffix is not None:
                         fn = '{}{}'.format(fn, suffix)
                     filename = '.'.join([fn, fext])
+
                     if ext is not None:
                         if isinstance(ext, str):
                             filename = change_ext(filename, ext)
                         elif ext == False:
                             filename = remove_ext(filename)
                         else:
-                            exc_msg = 'wrong extension!'
+                            exc_msg = '[{}]-wrong extension.'.format(self.step_code)
                             self.logging('warn', exc_msg, method=method_name)
                 else:
                     if self._input_method == 1:
@@ -946,7 +949,7 @@ class InterfaceHandler(InterfaceBase):
                             elif ext == False:
                                 filename = remove_ext(filename)
                             else:
-                                exc_msg = 'wrong extension!'
+                                exc_msg = '[{}]-wrong extension.'.format(self.step_code)
                                 self.logging('warn', exc_msg, method=method_name)
                 return filename
 
@@ -974,12 +977,12 @@ class InterfaceHandler(InterfaceBase):
 
             self._report_status(run_order)
 
-    def _check_output(self, run_order, label, prefix, suffix, ext):
+    def _set_output_checker(self, run_order, label, prefix, suffix, ext):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
         else:
-            self._wait_my_turn(run_order, '{}'.format(label), method='check_output')
+            self._wait_my_turn(run_order, '{}'.format(label), method='set_output_checker')
             method_name = 'check_output'
 
             for l, v in self._output_set.items():
@@ -1015,7 +1018,7 @@ class InterfaceHandler(InterfaceBase):
 
             if len(self._output_filter) == 0:
                 self.logging('warn', '[{}]-insufficient information to generate output_filter.'.format(self.step_code),
-                             method='check_output')
+                             method='set_output_checker')
             self._report_status(run_order)
 
     def _set_temporary(self, run_order, label, path_only):
@@ -1086,12 +1089,25 @@ class InterfaceHandler(InterfaceBase):
             self._cmd_set[len(self._cmd_set.keys())] = command
             self._report_status(run_order)
 
+    def _set_func(self, run_order, func):
+        if self._step_processed is True:
+            pass
+        else:
+            func_name = func.__code__.co_name
+            n_args = func.__code__.co_argcount
+            keywords = func.__code__.co_varnames[:n_args]
+            func_code = '{}({})'.format(func_name, ','.join(keywords))
+
+            self._wait_my_turn(run_order, '{}'.format(func_code), method='set_func')
+            self._func_set[len(self._func_set.keys())] = func
+            self._report_status(run_order)
+
     def _inspect_label(self, label, method_name=None):
 
         inspect_items = [self._input_set, self._output_set, self._var_set, self._temporary_set]
         for item in inspect_items:
             if label in item.keys():
-                exc_msg = '[{}]-The label have been assigned already'.format(self.step_code)
+                exc_msg = '[{}]-The label "{}" is duplicated.'.format(self.step_code, label)
                 self.logging('warn', exc_msg, method=method_name)
 
     def _parse_placeholder(self, manager, command):
@@ -1103,9 +1119,15 @@ class InterfaceHandler(InterfaceBase):
         p = re.compile(r"{0}[^{0}{1}]+{1}".format(raw_prefix, raw_surfix))
         return set([obj[len(prefix):-len(surfix)] for obj in p.findall(command)])
 
-    def _inspect_output(self):
+    def _parse_func_kwargs(self, func):
+        n_args = func.__code__.co_argcount
+        return [kw for kw in func.__code__.co_varnames[:n_args] if kw not in ['stdout', 'stderr']]
 
+    def _inspect_output(self):
+        """This hidden method detects output files that created before
+        """
         msi = self.msi
+        method = '_inspect_output'
         index_for_filter = []
         if len(self._output_filter):
             for i, (path, fname) in enumerate(self._output_filter):
@@ -1116,35 +1138,56 @@ class InterfaceHandler(InterfaceBase):
                     index_for_filter.append(i)
             if len(index_for_filter) > 0:
                 self.logging('debug',
-                             '[{}]-[{}] of existing files detected, now excluding.'.format(self.step_code,
-                                                                                           len(index_for_filter)),
-                             method='_inspect_output')
+                             '[{}]-a total of {} output files are detected.'.format(self.step_code,
+                                                                                    len(index_for_filter)),
+                             method=method)
                 arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
                 for arg_set in arg_sets:
                     for label, value in arg_set.items():
                         if isinstance(value, list):
                             arg_set[label] = [v for i, v in enumerate(value) if i not in index_for_filter]
             else:
-                self.logging('debug', '[{}]-all outputs are passed the inspection.'.format(self.step_code),
-                             method=self.step_code)
+                self.logging('debug', 'passed'.format(self.step_code),
+                             method=method)
         else:
             self.logging('debug', '[{}]-no output filter'.format(self.step_code),
-                         method='_inspect_output')
+                         method=method)
+
+    def _inspect_run(self):
+        """This hidden method will check if the interface was run properly by checking output
+        """
+        msi = self.msi
+        method = '_inspect_run'
+        index_for_filter = []
+        if len(self._output_filter):
+            for i, (path, fname) in enumerate(self._output_filter):
+                abspath = msi.path.join(path, fname)
+                if not msi.path.exists(abspath):
+                    index_for_filter.append(i)
+            if len(index_for_filter) > 0:
+                self.logging('debug',
+                             '[{}]-a total of {} output files are missing.'.format(self.step_code,
+                                                                                   len(index_for_filter)),
+                             method=method)
+                return 1
+            else:
+                self.logging('debug', '[{}]-step processed.'.format(self.step_code),
+                             method=method)
+                return 0
+        else:
+            self.logging('debug', '[{}]-no output filter'.format(self.step_code),
+                         method=method)
+            return 1
 
     def _call_manager(self):
-        """call the Manager the command template and its arguments to Manager"""
-
+        """This method calls the Manager instance and set the command template with its arguments on it.
+        """
         managers = []
         if len(self._cmd_set.keys()) == 0:
-            self.logging('warn', '[{}]-there is no command'.format(self.step_code),
+            self.logging('warn', '[{}]-no command found'.format(self.step_code),
                          method='_call_manager')
-        for i, cmd in sorted(self._cmd_set.items()):
-            if hasattr(self.msi, 'client'):
-                self.logging('debug', '[{}]-remote client detected.'.format(self.step_code),
-                             method='_call_manager')
-                mng = Manager(self._procobj.bucket.msi.client)
-            else:
-                mng = Manager()
+        for j, cmd in sorted(self._cmd_set.items()):
+            mng = Manager()
             placeholders = self._parse_placeholder(mng, cmd)
             self.logging('debug', '[{}]-placeholder in command template: [{}].'.format(self.step_code,
                                                                                        list(placeholders)),
@@ -1156,7 +1199,7 @@ class InterfaceHandler(InterfaceBase):
                     for label, value in arg_set.items():
                         if isinstance(value, list):
                             if len(value) == 0:
-                                return managers
+                                pass
                             else:
                                 if isinstance(value[0], tuple):
                                     joined_values = []
@@ -1170,7 +1213,52 @@ class InterfaceHandler(InterfaceBase):
                                 intensive_mkdir(value, interface=self.msi)
                         if ph in label:
                             mng.set_arg(label=label, args=value)
+
+            if self._errterm is not None:
+                mng.set_errterm(self._errterm)
             managers.append(mng)
-            self.logging('debug', '[{}]-managers are got all information they need!'.format(self.step_code),
+            self.logging('debug', '[{}]-managers instance receives all required information.'.format(self.step_code),
                          method='_call_manager')
+        return managers
+
+    def _call_func_manager(self):
+        managers = []
+        if len(self._func_set.keys()) == 0:
+            self.logging('warn', '[{}]-no python function found'.format(self.step_code),
+                         method='_call_func_manager')
+
+        for j, func in sorted(self._func_set.items()):
+            mng = FuncManager()
+            func_kwargs = self._parse_func_kwargs(func)
+            self.logging('debug', '[{}]-arguments in function: [{}].'.format(self.step_code,
+                                                                             list(func_kwargs)),
+                         method='_call_func_manager')
+            mng.set_func(func)
+            arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
+
+            for i, arg_set in enumerate(arg_sets):
+                for kw in func_kwargs:
+                    for label, value in arg_set.items():
+                        # create folder
+                        if isinstance(value, list):
+                            if len(value) == 0:
+                                pass
+                            else:
+                                if isinstance(value[0], tuple):
+                                    joined_values = []
+                                    for v in value:
+                                        intensive_mkdir(v[0], interface=self.msi)
+                                        joined_values.append(self.msi.path.join(*v))
+                                    value = joined_values
+                        elif isinstance(value, str):
+                            if i is 3:
+                                # the case for the set_temporary has been initiated with path_only=True
+                                intensive_mkdir(value, interface=self.msi)
+                        # asigned arguments to manager
+                        if kw in label:
+                            mng.set_arg(label=label, args=value)
+            managers.append(mng)
+            self.logging('debug',
+                         '[{}]-func_managers instance receives all required information.'.format(self.step_code),
+                         method='_call_func_manager')
         return managers

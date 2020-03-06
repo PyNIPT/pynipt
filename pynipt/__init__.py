@@ -21,7 +21,7 @@ if sys.version_info[0] == 3:
 else:
     from urllib2 import urlopen as __urlopen
 
-__version__ = '0.0.2a5'
+__version__ = '0.1.0'
 
 # URLs for developer plugin modules
 __inter_plugin_url = 'https://gist.githubusercontent.com/dvm-shlee/' \

@@ -136,11 +136,12 @@ class Pipeline(object):
         """
 
         # Define default attributes
-        self._bucket = Bucket(path, **kwargs)
+        self._bucket = Bucket(path)
         self._msi = self._bucket.msi
         self._interface = None                  # place holder for interface plugin
         self._n_threads = None                  # place holder to provide into Interface class
 
+        self._pipeline_title = None
         self._pipeobj = pipelines               # pipeline plugin will be attached to here
         self.detach_package()
 
@@ -179,19 +180,20 @@ class Pipeline(object):
         list_of_pipes = dict(zip(range(n_pipe), pipes))
         return list_of_pipes
 
-    def init_pipeline(self, title):
-        """Initiate package with given title
+    def init_emptypackage(self, title):
+        """Initiate empty package with given title
 
         Args:
             title:
         """
         self._bucket.update()
+        self.detach_package()
         self._interface = Interface(self._bucket, title,
                                     logger=self._logger,
                                     n_threads=self._n_threads)
         self._pipeline_title = title
         if _verbose_option is True:
-            print('Pipeline [{}] is initiated without selecting pipeline package.'.format(title))
+            print('temporary pipeline package [{}] is initiated.'.format(title))
 
     def select_package(self, package_id, **kwargs):
         """Initiate package
@@ -210,16 +212,7 @@ class Pipeline(object):
             self._pipeline_title = self.installed_packages[package_id]
         else:
             raise Exception
-
-        self._interface = Interface(self._bucket, self._pipeline_title,
-                                    logger=self._logger,
-                                    n_threads=self._n_threads)
-        command = 'self.selected = self._pipeobj.{}(self._interface'.format(self._pipeline_title)
-        if kwargs:
-            command += ', **{})'.format('kwargs')
-        else:
-            command += ')'
-        exec(command)
+        self.reset(**kwargs)
 
         if _verbose_option is True:
             print('Description about this package:\n')
@@ -231,13 +224,28 @@ class Pipeline(object):
             output = ["List of available pipelines in selected package:"] + avails
             print("\n".join(output))
 
+    def reset(self, **kwargs):
+        if self._pipeline_title is not None:
+            self._interface = Interface(self._bucket, self._pipeline_title,
+                                        logger=self._logger,
+                                        n_threads=self._n_threads)
+            command = 'self.selected = self._pipeobj.{}(self._interface'.format(self._pipeline_title)
+            if kwargs:
+                command += ', **{})'.format('kwargs')
+            else:
+                command += ')'
+            exec(command)
+        else:
+            pass
+
     def check_progression(self):
         if self._interface is not None:
             param = self._interface.scheduler_param
             queued_jobs = len(param['queue'])
             finished_jobs = len(param['done'])
+            desc = self.installed_packages[self._stored_id] if self._stored_id is not None else self._pipeline_title
             self._progressbar =  progressbar(total=queued_jobs + finished_jobs,
-                                             desc=self.installed_packages[self._stored_id],
+                                             desc=desc,
                                              initial=finished_jobs)
 
             def workon(n_queued, n_finished):
@@ -299,6 +307,7 @@ class Pipeline(object):
             idx(int):       index of available pipeline package
             **kwargs:       key:value pairs of parameters for this pipeline
         """
+        self.reset()
         self.set_param(**kwargs)
         if _verbose_option is True:
             exec('print(self.selected.pipe_{}.__doc__)'.format(self.selected.installed_pipelines[idx]))
@@ -308,19 +317,30 @@ class Pipeline(object):
     def bucket(self):
         return self._bucket
 
+    def remove(self, step_code, mode='processing'):
+        if isinstance(step_code, list):
+            for s in step_code:
+                self.interface.destroy_step(s, mode=mode)
+        elif isinstance(step_code, str) and (len(step_code) == 3):
+            self.interface.destroy_step(step_code, mode=mode)
+        else:
+            raise Exception
+
     @property
     def interface(self):
         return self._interface
 
-    def get_workers(self, step_code):
-        queues = self._interface.running_obj[step_code].threads.queues
-        if queues is not None:
-            if len(queues.keys()) > 1:
-                return queues
-            else:
-                return queues[queues.keys()[0]]
-        else:
-            return None
+    @property
+    def schedulers(self):
+        running_obj = self._interface.running_obj
+        steps = running_obj.keys()
+        return {s:running_obj[s].threads for s in steps}
+
+    @property
+    def managers(self):
+        running_obj = self._interface.running_obj
+        steps = running_obj.keys()
+        return {s: running_obj[s]._mngs for s in steps}
 
     def get_builder(self):
         if self.interface is not None:
@@ -337,7 +357,14 @@ class Pipeline(object):
                           ext=ext)
             if regex is not None:
                 filter['regex'] = regex
-            step = proc._get_step_dir(step_code)
+            try:
+                step = proc._get_step_dir(step_code)
+            except:
+                try:
+                    step = proc._get_report_dir(step_code)
+                except:
+                    step = proc._get_mask_dir(step_code)
+
             if step_code in proc._executed.keys():
                 dataclass = 1
                 filter['steps'] = step
@@ -353,4 +380,41 @@ class Pipeline(object):
         else:
             return None
 
+    def __repr__(self):
+        return self.summary
 
+    @property
+    def summary(self):
+        return str(self._summary())
+
+    def _summary(self):
+        if self._pipeline_title is not None:
+            self.interface.update()
+            s = ['** List of existing steps in selected package [{}]:\n'.format(self._pipeline_title)]
+            if len(self.interface._executed) is 0:
+                pass
+            else:
+                s.append("- Processed steps:")
+                for i, step in sorted(self.interface._executed.items()):
+                    s.append("\t{}: {}".format(i, step))
+            if len(self.interface._reported) is 0:
+                pass
+            else:
+                s.append("- Reported steps:")
+                for i, step in sorted(self.interface._reported.items()):
+                    s.append("\t{}: {}".format(i, step))
+            if len(self.interface._masked) is 0:
+                pass
+            else:
+                s.append("- Mask data:")
+                for i, step in sorted(self.interface._masked.items()):
+                    s.append("\t{}: {}".format(i, step))
+            if len(self.interface._waiting_list) is 0:
+                pass
+            else:
+                s.append("- Quoue:")
+                s.append("\t{}".format(', '.join(self.interface._waiting_list)))
+            output = '\n'.join(s)
+            return output
+        else:
+            return None

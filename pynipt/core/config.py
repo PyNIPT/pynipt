@@ -34,6 +34,7 @@ def create_config_file(cfg, path):
 
     # Computing and processing related
     cfg.add_section('Preferences')
+    cfg.set('Preferences', 'timeout', '10')
     cfg.set('Preferences', 'daemon_refresh_rate', '0.1')
     cfg.set('Preferences', 'number_of_thread', '4')
     cfg.set('Preferences', 'verbose', True)

@@ -207,7 +207,7 @@ class BucketBase(object):
         return container, max_depth
 
     def scan(self, idx):
-        """the method to scan data structure of selected dataclass.
+        """This method scans DataStructure of selected dataclass.
 
         Notes:
             Using 'parser' methods, this method collect the maximal depth
@@ -626,11 +626,11 @@ class ProcessorBase(object):
     def _parse_executed_subdir(self):
         """internal method to update subdir information which contains data."""
         base = {1:self._executed, 2:self._reported, 3:self._masked, 4:self._tmp}
+        base_labels = {1: 'executed', 2: 'reported', 3: 'masked', 4: 'tmp'}
         column_index = {1:1, 2:1, 3:0, 4:1}
         for i, dic in base.items():
             if self.bucket.param_keys[i] is not None:
                 # if above is None, it's Empty bucket
-
                 if i == 3:
                     filtered = self.bucket(i, copy=True)
                 else:
@@ -645,6 +645,15 @@ class ProcessorBase(object):
                     dic.clear()
                 else:
                     steps = self._sort_params(filtered.df[filtered.df.columns[column_index[i]]])
+
+                    # Below loop will delete the step_code that not existing anymore.
+                    orig_steplist = ['{}_{}'.format(code, title) for code, title in list(dic.items())]
+                    bool_list = [s not in steps for s in orig_steplist]
+
+                    # self.logging('debug', '{} = {}, {}'.format(base_labels[i], steps, orig_steplist))
+                    for idx in list(filter(lambda i: bool_list[i], range(len(bool_list)))):
+                        # self.logging('debug', '{} will be deleted.'.format(orig_steplist[idx]))
+                        del dic[orig_steplist[idx].split('_')[0]]
                     for s in steps:
                         if i == 3:
                             n_files = len(self.bucket(i, datatypes=s))
@@ -654,6 +663,8 @@ class ProcessorBase(object):
                             n_files = len(self.bucket(i, pipelines=self.label, steps=s))
                         if n_files > 0:
                             dic[self._pattern.sub(r'\1', s)] = s[4:]
+            # else:
+                # self.logging('debug', '{} not parsed'.format(base_labels[i]))
 
     def _parse_existing_subdir(self):
         """internal method to update all subdir information that created in each dataclass folders."""
@@ -751,6 +762,7 @@ class InterfaceBase(object):
         self._var_set = dict()
         self._temporary_set = dict()
         self._cmd_set = dict()
+        self._func_set = dict()
         self._input_spacer = None
 
     def _init_attr_for_execution(self):
@@ -760,6 +772,7 @@ class InterfaceBase(object):
         self._processed_run_order = []
         self._daemons = dict()
         self._mngs = None
+        self._errterm = None
 
     @property
     def get_daemon(self):
@@ -824,8 +837,8 @@ class InterfaceBase(object):
             time.sleep(_refresh_rate)
         if message is not None:
             self.logging('debug', '[{}]-#{}-{}'.format(self.step_code,
-                                                        str(run_order).zfill(3),
-                                                        message), method=method)
+                                                       str(run_order).zfill(3),
+                                                       message), method=method)
 
     def _report_status(self, run_order):
         self._processed_run_order.append(run_order)

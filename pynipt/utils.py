@@ -35,8 +35,11 @@ def remove_ext(filename):
 
 
 def split_ext(filename):
-    pattern = re.compile(r'([^.]*)\.(.*)')
-    return pattern.sub(r'\1', filename), pattern.sub(r'\2', filename)
+    if '.' in filename:
+        pattern = re.compile(r'([^.]*)\.(.*)')
+        return pattern.sub(r'\1', filename), pattern.sub(r'\2', filename)
+    else:
+        return filename, None
 
 
 def change_ext(filename, ext):
