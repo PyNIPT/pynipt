@@ -1,5 +1,5 @@
 # PyNIPT (Python NeuroImage Pipeline Tool)
-### Version: 0.0.2
+### Version: 0.1.0
 
 #### Common features:
 - PyNIPT is a part of **PyNIP project** to provide pipeline scripting tool for helping researchers in preclinical neuroimaging field, especially who are not familiar with bash scripting or MATLAB coding.   
