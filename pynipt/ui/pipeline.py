@@ -412,7 +412,7 @@ class Pipeline(object):
             if len(self.interface._waiting_list) is 0:
                 pass
             else:
-                s.append("- Quoue:")
+                s.append("- Queue:")
                 s.append("\t{}".format(', '.join(self.interface._waiting_list)))
             output = '\n'.join(s)
             return output
