@@ -10,6 +10,7 @@ from ..core.handler import InterfaceHandler
 _refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
 _timeout = float(config.get('Preferences', 'timeout'))
 
+
 class InterfaceBuilder(InterfaceHandler):
     """ for building a interface plugin
     # TODO: Docstring update is needed, also need to find better way to operate pipeline on thread,
@@ -67,9 +68,9 @@ class InterfaceBuilder(InterfaceHandler):
         run_order = self._update_run_order()
         # add current step code to the step list
 
-        mode_dict = {'processing': 1,
-                     'reporting': 2,
-                     'masking': 3}
+        mode_dict = {'processing'   : 1,
+                     'reporting'    : 2,
+                     'masking'      : 3}
 
         if mode in mode_dict.keys():
             self._path = self._procobj.init_step(title=title, suffix=suffix,

@@ -22,6 +22,12 @@ else:
     from urllib2 import urlopen as __urlopen
 
 __version__ = '0.1.0'
+__all__     = ['Bucket',
+               'Processor',
+               'InterfaceBuilder',
+               'PipelineBuilder',
+               'Scheduler',
+               'Pipeline']
 
 # URLs for developer plugin modules
 __inter_plugin_url = 'https://gist.githubusercontent.com/dvm-shlee/' \
@@ -131,14 +137,5 @@ def avail():
     for i in sorted(interfaces):
         print('\t{}'.format(i))
 
-
-
-
-__all__ = ['Bucket',
-           'Processor',
-           'InterfaceBuilder',
-           'PipelineBuilder',
-           'Scheduler',
-           'Pipeline']
 
 

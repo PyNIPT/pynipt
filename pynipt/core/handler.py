@@ -896,62 +896,62 @@ class InterfaceHandler(InterfaceBase):
             else:
                 self._inspect_label(label, method_name)
 
-            def check_modifier(filename):
+            def check_modifier(fname):
                 if modifier is not None:
                     if isinstance(modifier, dict):
                         for f, rep in modifier.items():
-                            filename = change_fname(filename, f, rep)
+                            fname = change_fname(fname, f, rep)
                     elif isinstance(modifier, str):
                         if self._input_method is not 1:
                             exc_msg = 'single output name assignment only available for input method=1'
                             self.logging('warn', exc_msg, method=method_name)
                         else:
-                            filename = modifier
+                            fname = modifier
                     else:
                         exc_msg = 'wrong modifier.'
                         self.logging('warn', exc_msg, method=method_name)
-                    fn, fext = split_ext(filename)
+                    fn, fext = split_ext(fname)
                     if fext is None:
                         fext = 'dir'
                     if prefix is not None:
                         fn = '{}{}'.format(prefix, fn)
                     if suffix is not None:
                         fn = '{}{}'.format(fn, suffix)
-                    filename = '.'.join([fn, fext])
+                    fname = '.'.join([fn, fext])
 
                     if ext is not None:
                         if isinstance(ext, str):
-                            filename = change_ext(filename, ext)
+                            fname = change_ext(fname, ext)
                         elif ext == False:
-                            filename = remove_ext(filename)
+                            fname = remove_ext(fname)
                         else:
                             exc_msg = '[{}]-wrong extension.'.format(self.step_code)
                             self.logging('warn', exc_msg, method=method_name)
                 else:
                     if self._input_method == 1:
-                        filename = '{}_output'.format(self.step_code)
+                        fname = '{}_output'.format(self.step_code)
                         if prefix is not None:
-                            filename = '{}{}'.format(prefix, filename)
+                            fname = '{}{}'.format(prefix, fname)
                         if suffix is not None:
-                            filename = '{}{}'.format(filename, suffix)
+                            fname = '{}{}'.format(fname, suffix)
                         if ext is not None:
-                            filename = '{}.{}'.format(filename, ext)
+                            fname = '{}.{}'.format(fname, ext)
                     else:
-                        fn, fext = split_ext(filename)
+                        fn, fext = split_ext(fname)
                         if prefix is not None:
                             fn = '{}{}'.format(prefix, fn)
                         if suffix is not None:
                             fn = '{}{}'.format(fn, suffix)
-                        filename = '.'.join([fn, fext])
+                        fname = '.'.join([fn, fext])
                         if ext is not None:
                             if isinstance(ext, str):
-                                filename = change_ext(filename, ext)
+                                fname = change_ext(fname, ext)
                             elif ext == False:
-                                filename = remove_ext(filename)
+                                fname = remove_ext(fname)
                             else:
                                 exc_msg = '[{}]-wrong extension.'.format(self.step_code)
                                 self.logging('warn', exc_msg, method=method_name)
-                return filename
+                return fname
 
             # all possible input types, method 0 and method 1
             self._output_set[label] = []
@@ -1110,16 +1110,18 @@ class InterfaceHandler(InterfaceBase):
                 exc_msg = '[{}]-The label "{}" is duplicated.'.format(self.step_code, label)
                 self.logging('warn', exc_msg, method=method_name)
 
-    def _parse_placeholder(self, manager, command):
-        prefix, surfix = manager.decorator
+    @staticmethod
+    def _parse_placeholder(manager, command):
+        prefix, suffix = manager.decorator
         raw_prefix = ''.join([r'\{}'.format(chr) for chr in prefix])
-        raw_surfix = ''.join([r'\{}'.format(chr) for chr in surfix])
+        raw_surfix = ''.join([r'\{}'.format(chr) for chr in suffix])
 
         # The text
         p = re.compile(r"{0}[^{0}{1}]+{1}".format(raw_prefix, raw_surfix))
-        return set([obj[len(prefix):-len(surfix)] for obj in p.findall(command)])
+        return set([obj[len(prefix):-len(suffix)] for obj in p.findall(command)])
 
-    def _parse_func_kwargs(self, func):
+    @staticmethod
+    def _parse_func_kwargs(func):
         n_args = func.__code__.co_argcount
         return [kw for kw in func.__code__.co_varnames[:n_args] if kw not in ['stdout', 'stderr']]
 
