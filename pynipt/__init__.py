@@ -127,10 +127,9 @@ def avail():
         print('\t{}'.format(p))
 
     list_to_ignore = ['bucket', 'clear', 'close_step', 'destroy_step', 'get_daemon',
-                      'init_step', 'inspect_input', 'label', 'logging', 'mask_path',
-                      'path', 'prepare_package_dir', 'report_path', 'scheduler_param',
-                      'step_code_pattern', 'stepobjs', 'summary', 'temp_path', 'update',
-                      'update_attributes']
+                      'init_step', 'inspect_input', 'label', 'logging', 'mask_path', 'msi',
+                      'path', 'prepare_package_dir', 'report_path', 'scheduler_param', 'running_obj',
+                      'step_code_pattern', 'summary', 'temp_path', 'update', 'update_attributes']
     interfaces = [i for i in dir(ui.pipeline.Interface) if i not in list_to_ignore and not i.startswith('_')]
 
     print('\n[List of available interfaces]')
