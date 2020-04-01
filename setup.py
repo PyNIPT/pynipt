@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/scripts/env python
 """
 PyNIPT (Python NeuroImaging Pipeline Tools)
 """
