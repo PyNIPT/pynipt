@@ -31,6 +31,7 @@ setup(name='PyNIPT',
           'pandas',
           'tqdm',
           'psutil',
+          'shleeh'
                        ],
       # scripts=['',
       #         ],
@@ -52,7 +53,7 @@ setup(name='PyNIPT',
             'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3.7',
       ],
-      keywords = 'Python NeuroImaging Pipeline Tools'
+      keywords='Python NeuroImaging Pipeline Tools'
 
      )
 
