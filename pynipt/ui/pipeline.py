@@ -374,6 +374,7 @@ class Pipeline(object):
             elif step_code in proc._masked.keys():
                 dataclass = 3
                 filter['datatypes'] = step
+                del filter['pipelines']
             else:
                 return None
             return self.bucket(dataclass, copy=True, **filter)

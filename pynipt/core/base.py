@@ -5,12 +5,7 @@ import time
 import sys
 import logging
 from collections import namedtuple, OrderedDict
-if sys.version_info[0] == 3:
-    # import configparser
-    from importlib import reload
-else:
-    # import ConfigParser as configparser
-    from imp import reload
+from importlib import reload
 from .config import config
 
 

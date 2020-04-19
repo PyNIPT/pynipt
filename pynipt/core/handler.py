@@ -1013,11 +1013,16 @@ class InterfaceHandler(InterfaceBase):
                                 fn = '{}.{}'.format(fn_woext, old_ext)
                             self._output_filter.append((p, fn))
                         else:
-                            exc_msg = '[{}]-unexpected error, might be caused by incorrect input_method.'.format(self.step_code)
+                            exc_msg = '[{}]-unexpected error, ' \
+                                      'this error can be caused by incorrect input_method.'.format(self.step_code)
                             self.logging('warn', exc_msg, method=method_name)
 
             if len(self._output_filter) == 0:
-                self.logging('warn', '[{}]-insufficient information to generate output_filter.'.format(self.step_code),
+                self.logging('debug', 'Exception detected: [Please check below information]\n'
+                                      'input_method={},\n'
+                                      'detected_output={}\n'.format(self._input_method, self._output_set.items()))
+                self.logging('warn', '[{}]-No output_filter, this exception can be caused by '
+                                     'insufficient regular expression pattern.'.format(self.step_code),
                              method='set_output_checker')
             self._report_status(run_order)
 
