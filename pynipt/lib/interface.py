@@ -1,622 +1,121 @@
-#%% import modules
-from .base import config
-from .base import dc
-from .base import BucketBase
-from .base import ProcessorBase
-from .base import InterfaceBase
-from paralexe import Manager, FuncManager
-import os
-import re
 import time
-
-# import sys
-import warnings
-import pandas as pd
+from paralexe import Manager, FuncManager, Scheduler
+from ..config import config
 from ..utils import *
 
-#%% pandas display option setting
-pd.set_option("display.max_rows", int(config.get('Display', 'Max_Row')))
-pd.set_option("display.max_colwidth", int(config.get('Display', 'Max_Colwidth')))
-_refresh_rate = float(config.get('Preferences', 'daemon_refresh_rate'))
 
+class InterfaceBase(object):
+    """ Base class of InterfaceBuilder.
 
-#%% The class for handling dataset bucket
-class BucketHandler(BucketBase):
-    """The class to navigate the dataset information.
+    Attributes and some function for getting inheritance from the other class
+    is defining here in yhr base class
 
-    The role of this class is parse the data structure from data folder,
-    and keep it as properties to be utilized by other class.
-
-    Notes:
-        The Handler level is oriented to filter the data to fine specific group of data.
-
-    Args:
-        path (str): project folder.
-
-    Attributes:
-        columns:
-        path:
-        params:
-        param_keys:
-
-    Todo:
-        Need to update doctrings.
     """
-    def __init__(self, path):
-        super(BucketHandler, self).__init__()
-        self.__initiate_handler_attributes()
-        self.msi = os
-        if path is not None:
-            self.set_path(path)
+    def __init__(self):
+        pass
+
+    def _parse_info_from_processor(self, processor):
+        self._procobj = processor
+        self._msi = processor.msi
+        self._bucket = self._procobj.bucket
+        self._label = processor.label
+        self._multi_session = self._bucket.is_multi_session()
+        self._path = None                   # output path
+
+    def _init_attr_for_inspection(self):
+        # attributes for the inspection
+        self._main_input = None
+        self._input_method = None
+        self._input_ref = dict()
+        self._input_set = dict()
+        self._output_set = dict()
+        self._output_filter = list()
+        self._var_set = dict()
+        self._temporary_set = dict()
+        self._cmd_set = dict()
+        self._func_set = dict()
+        self._input_spacer = None
+
+    def _init_attr_for_execution(self):
+        # attributes for controlling method execution
+        self._step_processed = False  # True if current step listed in procobj._processed_list
+        self._order_counter = 0
+        self._processed_run_order = []
+        self._daemons = dict()
+        self._mngs = None
+        self._errterm = None
+        self._refresh_rate = config['Preferences'].getfloat('daemon_refresh_rate')
+        self._timeout = config['Preferences'].getint('timeout')
+
+    @property
+    def get_daemon(self):
+        return self._procobj.get_daemon
+
+    @property
+    def msi(self):
+        return self._msi
+
+    def logging(self, level: str, message: str, method: str=None):
+        """The helper method to log message. If the logger is not initiated,
+        only log the message if logger is initiated.
+
+        Args:
+            level (str): 'debug', 'stdout', or 'stderr'
+            message (str): The message for logging.
+            method
+
+        Raises:
+            Exception: if level is not provided.
+        """
+        classname = 'InterfaceBuilder'
+        if method is not None:
+            message = '{}:{}-{}'.format(classname, method, message)
         else:
-            pass
+            message = '{}-{}'.format(classname, message)
+        self._procobj.logging(level, message)
+        if level == 'warn':
+            raise Exception(message)
 
-    def __initiate_handler_attributes(self):
-        self._filtered_dataset = {i: None for i in range(len(dc))}
-        self._filter_params = {i: None for i in range(len(dc))}
-        self._fname_keys = ['contain', 'ignore', 'ext', 'regex']
+    @property
+    def path(self):
+        return self._path
 
-    def set_path(self, path):
-        """Update the absolute path of the Project folder.
-
-        This method make the dataclass folders if it does not exist.
-        Finally this will update the project structure information.
-
-        Args:
-            path (str): Project folder
-        """
-        super(BucketHandler, self).set_path(path)
-        self._makedir()
-        self.update()
-
-    def _makedir(self):
-        """Make dataclass folders if it does not exists"""
-        exist_dir = [d for d in self.msi.listdir(self.path) if d in dc]
-        if len(exist_dir) != 0:
-            missing_dir = list(set(dc).difference(exist_dir))
-            if len(missing_dir) != 0:
-                for d in missing_dir:
-                    self.msi.mkdir(self.msi.path.join(self.path, d))
-
-    def _abspath(self, path):
-        return self.msi.path.abspath(path)
-
-    def _walk(self, path):
-        return self.msi.walk(path)
-
-    def get_df(self, idx, filtered=False):
-        """The method to return dataset contents with the pandas DataFrame type.
-
-        Args:
-            idx (int): index of dataclass.
-            filtered: return filtered dataset structure if True.
-
-        Returns:
-            pandas.DataFrame instance that contains data structure of selected dataclass.
-        """
-        if self._check_empty(idx):
-            return None    # empty
-        self.apply_filters()
-        if filtered is True:
-            return pd.DataFrame.from_records(self._filtered_dataset[idx],
-                                             columns=self._column_info[idx])
+    @property
+    def step_code(self):
+        if self._path is None:
+            return None
         else:
-            return pd.DataFrame.from_records(self._dataset[idx],
-                                             columns=self._column_info[idx])
+            pattern = self._procobj.step_code_pattern
+            step_code = pattern.sub(r'\1', self.msi.path.basename(self._path))
+            return step_code
 
-    def _check_empty(self, idx):
-        """The method to check if the dataclass is empty or not.
-
-        Args:
-            idx (int): index of dataclass
-
-        Returns:
-            bool: True if empty, else False
-        """
-        if self.params[idx] is None:
+    def is_initiated(self):
+        if self._path is not None:
             return True
         else:
             return False
 
-    def set_filters(self, idx, *args, **kwargs):
-        """This method create filtered dataset using given filter.
+    def _update_run_order(self):
+        run_order = int(self._order_counter)
+        self._order_counter += 1
+        return run_order
 
-        Args:
-            idx: dataclass index.
-            *args: string based filters for legacy method.
-            **kwargs: keyword based filters.
+    def _wait_my_turn(self, run_order, message=None, method=None):
+        previous_run_order = run_order - 1
+        loop = True
+        while loop is True:
+            if self.is_initiated():
+                if previous_run_order in self._processed_run_order:
+                    if not self._daemons[previous_run_order].is_alive():
+                        loop = False
+            time.sleep(self._refresh_rate)
+        if message is not None:
+            self.logging('debug', '[{}]-#{}-{}'.format(self.step_code,
+                                                       str(run_order).zfill(3),
+                                                       message), method=method)
 
-        Return:
-            returncode (int): 1 if dataclass is Empty, else 0.
-        """
-        def filter_warning(input_items):
-            # Print warning message to sys.stderr
-
-            for item in input_items:
-                if self.msi.path.exists(self.msi.path.join(self.path, dc[idx], item)):
-                    return 0 # to prevent warning when processor initiate with new label
-            warnings.warn('Inaccurate filters is used: {}\n'
-                          '[{}] class is not filtered.'.format(input_items, dc[idx]))
-
-        if self._check_empty(idx):
-            return 1    # empty
-        if self.params[idx] is None:
-            self._filter_params[idx] = None
-        else:
-            keys = self._param_keys[idx]
-            avail = sum([self.params[idx]._asdict()[key] for key in keys], [])
-
-            if len(args) != 0:        # Legacy filter method
-                if not set(args).issubset(avail):
-                    self._filter_params[idx] = None         # reset filters
-                    diff_args = list(set(args).difference(avail))
-                    filter_warning(diff_args)
-                else:
-                    self._filter_params[idx] = dict(args=args)
-
-                if kwargs is not None:
-                    if not set(kwargs.keys()).issubset(self._fname_keys):
-                        self._filter_params[idx] = None     # reset filters
-                        diff_kwargs = list(set(kwargs.keys()).difference(self._fname_keys))
-                        filter_warning(diff_kwargs)
-                    else:
-                        for key, value in kwargs.items():
-                            self._filter_params[idx][key] = value
-            else:                   # New filter method
-                if len(kwargs) != 0:
-                    filter_keys = sum([keys, self._fname_keys], [])
-                    if not set(kwargs.keys()).issubset(filter_keys):
-                        self._filter_params[idx] = None     # reset filters
-                        diff_kwargs = list(set(kwargs.keys()).difference(filter_keys))
-                        filter_warning(diff_kwargs)
-                    else:
-                        self._filter_params[idx] = dict()
-                        for key, value in kwargs.items():
-                            self._filter_params[idx][key] = value
-                else:
-                    self._filter_params[idx] = None         # reset filters
-        return 0
-
-    def apply_filters(self):
-        """The method to create filtered dataset using stored filter information."""
-
-        def get_filtered_dataset(dataset, params, attributes, keyword, regex=False):
-            """The method to perform dataset filtering.
-            Args:
-                dataset:
-                params:
-                attributes:
-                keyword:
-                regex:
-
-            Raises:
-                Exception:
-
-            Returns:
-
-            """
-            if keyword in params.keys():
-                filters = params[keyword]
-                if isinstance(filters, str):
-                    filters = [filters]
-                elif isinstance(filters, list):
-                    pass
-                else:
-                    # Wrong filter
-                    raise Exception
-                result = []
-                if regex is False:
-                    if keyword == 'ext':
-                        for flt in filters:
-                            result.append([finfo for finfo in dataset \
-                                           if finfo._asdict()[attributes].endswith(flt)])
-                    elif keyword == 'regex':
-                        for flt in filters:
-                            pattern = re.compile(flt)
-                            result.append([finfo for finfo in dataset \
-                                           for p in [pattern.search(finfo._asdict()[attributes].split('.')[0])] if p])
-                    else:
-                        for flt in filters:
-                            result.append([finfo for finfo in dataset \
-                                           if flt in finfo._asdict()[attributes].split('.')[0]])
-                else:
-                    for flt in filters:
-                        pattern = re.compile(flt)
-                        result.append([finfo for finfo in dataset \
-                                       for p in [pattern.search(finfo._asdict()[attributes])] if p])
-                return list(set(sum(result, [])))
-            else:
-                # No matched key
-                raise Exception
-
-        for idx, filter_params in self._filter_params.items():
-            filtered = self._dataset[idx]
-            if filter_params is None:   # No filter
-                self._filtered_dataset[idx] = self._dataset[idx]
-            else:                       # filter exists
-                list_param_keys = list(filter_params.keys())[:]
-                finfo_att = self._column_info[idx][:-2]
-                fname_att = self._column_info[idx][-2]
-
-                if 'args' in list_param_keys:  # legacy filter method
-
-                    for i, att in enumerate(finfo_att):
-                        results = [finfo for finfo in filtered if finfo._asdict()[att] \
-                                   in filter_params['args']]
-                        if len(results) != 0:
-                            filtered = results
-                else:               # Updated method, use regex for all filter
-                    att_set = dict(zip(self._param_keys[idx], finfo_att))
-
-                    for key, att in att_set.items():
-                        if key in list_param_keys:
-                            filtered = get_filtered_dataset(filtered, filter_params, att, key, regex=True)
-                if 'regex' in list_param_keys:
-                    filtered = get_filtered_dataset(filtered, filter_params, fname_att, 'regex')
-
-                if 'contain' in list_param_keys:
-                    results = get_filtered_dataset(filtered, filter_params, fname_att, 'contain')
-                    if len(results) != 0:
-                        filtered = results
-                    else:
-                        filtered = []
-
-                if 'ignore' in list_param_keys:
-                    results = get_filtered_dataset(filtered, filter_params, fname_att, 'ignore')
-                    if len(results) != 0:
-                        filtered = [finfo for finfo in filtered if finfo not in results]
-                    else:
-                        filtered = []
-
-                if 'ext' in list_param_keys:
-                    filtered = get_filtered_dataset(filtered, filter_params, fname_att, 'ext')
-                self._filtered_dataset[idx] = sorted(filtered)
-
-
-#%% The class for handling Interface
-class ProcessorHandler(ProcessorBase):
-    """The class to handle Interface instance.
-
-    Args:
-        bucket (:obj:'Bucket'): Bucket instance
-        label (str):
-
-    Methods:
-        inspect_input: check the integrity of input_path
-        init_step: create a new step dir
-        close_step: remove step dir if it empty
-        clear: remove all empty step dir
-
-    Attributes:
-
-
-    Todo:
-        Need to update doctrings.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(ProcessorHandler, self).__init__(*args, **kwargs)
-        # self.update()
-
-    def inspect_input(self, input_path, mask=False):
-        """Check the integrity of input_path and return the correct form of input object.
-        Notice: only dataset_path, working_path, and masking_path are available to use as input.
-
-        Args:
-            input_path (str): step code or absolute path of input. dtype if the input from data.
-            mask (bool): True if the input is mask, in this case, the input_path must indicate the datatype of image.
-
-        Returns:
-            input_obj ('str' or 'tuple'):
-
-        Raises:
-            Exception:
-        """
-        if isinstance(input_path, str):
-            pattern = re.compile(r'\w{2}[0A-Z]')
-            if mask is True:
-                exc_msg = 'Cannot find mask data from given input_path.'
-                try:
-                    # can be absolute path if the given path has same data structure.
-                    if self.msi.path.exists(input_path):
-                        # return input_path
-                        input_path = self.msi.path.basename(input_path)
-                    # the exception will raised if no mask
-                    elif input_path in set(self.bucket.params[3].datatypes):
-                        pass
-                    elif pattern.match(input_path.upper()):
-                        # return self.msi.path.join(self.bucket.path, dc[3], self._get_mask_dir(input_path.upper())
-                        input_path = self._get_mask_dir(input_path.upper())
-                    else:
-                        raise Exception
-                except:
-                    self.logging('warn', exc_msg)
-                    raise Exception(exc_msg)
-            else:
-                exc_msg = 'Cannot find the datatype mapped with input_path.'
-                try:
-                    if self.msi.path.exists(input_path):
-                        # return input_path
-                        input_path = self.msi.path.basename(input_path)
-                    elif input_path in set(self.bucket.params[0].datatypes):
-                        # return self.msi.path.join(self.bucket.path, dc[0]), input_path
-                        pass
-                    elif pattern.match(input_path.upper()):
-                        # return self.msi.path.join(self.path, self._get_step_dir(input_path.upper()))
-                        input_path = self._get_step_dir(input_path.upper())
-                    else:
-                        raise Exception
-                except:
-                    self.logging('warn', exc_msg)
-                    raise Exception(exc_msg)
-        else:
-            exc_msg = 'The given input cannot pass the inspection.'
-            self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
-
-        return input_path
-
-    def _split_step_code(self, step_code):
-        """split step code into index and substep_code
-
-        Args:
-            step_code: first three character of step dir name
-
-        Returns:
-            step_idx (int): step index
-            substep_code (None or [A-Z]): if the code is 0, return None, else return one of capital Alphabet
-
-        """
-        step_idx = int(step_code[:2])
-        substep_code = step_code[-1]
-
-        try:
-            if int(substep_code) == 0:
-                substep_code = None
-        except:
-            pass
-        return step_idx, substep_code
-
-    def init_step(self, title, mode='processing', suffix=None, idx=None, subcode=None):
-        """create a new step directory on selected mode
-
-        Args:
-            title (str): step title.
-            mode (str): ['processing', 'reporting', 'masking']
-            suffix (str): suffix need to be added to title.
-            idx (int): index of the step
-            subcode (int or str): the code with 0 or A-Z to indicate sub-step order.
-
-        Returns:
-            abspath (str): the absolute path of initiated step.
-        """
-        # prepare all available sub-step codes and executed steps information
-        import string
-        avail_codes = string.ascii_uppercase
-
-        if mode in ['processing', 'reporting', 'masking']:
-            existing_dir = dict(list(self._existing_step_dir.items()) \
-                                + list(self._existing_mask_dir.items()) \
-                                + list(self._existing_report_dir.items()))
-        else:
-            exc_msg = '[{}] is not available mode.'.format(mode)
-            self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
-
-        # inspect idx and subcode
-        if idx is not None:
-            if isinstance(idx, int) and (idx < 99) and (idx > 0):
-                pass
-            else:
-                exc_msg = 'The given step index is out of range (0 - 99).'
-                self.logging('warn', exc_msg)
-                raise Exception(exc_msg)
-        if subcode is not None:
-            if isinstance(subcode, str):
-                subcode = subcode.upper()
-            if (subcode == 0) or str(subcode) in avail_codes:
-                pass
-            else:
-                exc_msg = 'The given sub-step code is out of range (0 or A-Z).'
-                self.logging('warn', exc_msg)
-                raise Exception(exc_msg)
-
-        # update suffix to title
-        if suffix is not None:
-            title = "{}-{}".format(title, suffix)
-
-        # if no folder created so far
-        if len(existing_dir.keys()) == 0:
-            if subcode is None:
-                subcode = 0
-            if idx is None:
-                # the code for the very first step will be 010
-                new_step_code = '01{}'.format(subcode)
-            else:
-                # if idx are given, then use it
-                new_step_code = "{}{}".format(str(idx).zfill(2), subcode)
-        else:
-            # parse step code from list of executed steps
-            existing_codes = sorted(existing_dir.keys())
-            existing_titles = [existing_dir[c] for c in existing_codes]
-
-            # check if the same title have been used
-            duplicated_title_idx = [i for i, t in enumerate(existing_titles) if title == t]
-            if len(duplicated_title_idx) != 0:
-                # since will not allow duplicated title, it will be not over 1
-                if idx is not None:
-                    exc_msg = 'Duplicated title is used, please use suffix to make it distinct.'
-                    if idx == int(existing_codes[duplicated_title_idx[0]][:2]):
-                        new_step_code = existing_codes[duplicated_title_idx[0]]
-                        if subcode is not None:
-                            if new_step_code[-1] != str(subcode):
-                                self.logging('warn', exc_msg)
-                                raise Exception(exc_msg)
-                    else:
-                        self.logging('warn', exc_msg)
-                        raise Exception(exc_msg)
-                else:
-                    new_step_code = existing_codes[duplicated_title_idx[0]]
-
-            else:
-                # there is no duplicated title
-                existing_step_idx = [int(self._split_step_code(c)[0]) for c in existing_codes]
-                existing_substep_code = [self._split_step_code(c)[1] for c in existing_codes]
-
-                if idx is not None:
-                    # check the executed step index if it previously used
-                    duplicated_idx_steps = [i for i, esi in enumerate(existing_step_idx) if esi == idx]
-                    new_step_idx = idx
-                    if len(duplicated_idx_steps) == 0:
-                        # there is no duplicated index
-                        if subcode is not None:
-                            new_substep_code = subcode
-                        else:
-                            new_substep_code = 0
-                    else:
-                        # there is duplicated index, check the sub-step code
-                        if subcode is not None:
-                            new_substep_code = subcode
-                        else:
-                            latest_substep_code = existing_substep_code[max(duplicated_idx_steps)]
-                            if latest_substep_code is not None:
-                                new_substep_code_idx = avail_codes.find(latest_substep_code) + 1
-                                if new_substep_code_idx >= len(avail_codes):
-                                    # The number of allowable sub-step code limited between 0 and A-Z
-                                    exc_msg = 'The sub-step code is exceed its limit.'
-                                    self.logging('warn', exc_msg)
-                                    raise Exception(exc_msg)
-                                new_substep_code = avail_codes[new_substep_code_idx]
-                            else:
-                                new_substep_code = avail_codes[0]
-                else:
-                    # idx was not given, generate new one
-                    if subcode is not None:
-                        # subcode must use with idx
-                        exc_msg = 'not allowed to use sub-step code without idx argument.'
-                        self.logging('warn', exc_msg)
-                        raise Exception(exc_msg)
-
-                    new_substep_code = 0
-                    new_step_idx = max(existing_step_idx) + 1
-
-                # compose step code using idx and substep code
-                new_step_code = "{}{}".format(str(new_step_idx).zfill(2), new_substep_code)
-                if new_step_code in existing_codes:
-                    if title not in existing_titles:
-                        exc_msg = ['the step code had been used already.\n']
-                        exc_msg.append('current_title: {}'.format(title))
-                        exc_msg.append('existing_title:')
-                        for t in existing_titles:
-                            exc_msg.append('\t{}'.format(t))
-                        self.logging('warn', '\n'.join(exc_msg))
-                        raise Exception('\n'.join(exc_msg))
-
-        # dir name
-        new_step_dir = "{}_{}".format(new_step_code, title)
-
-        if mode is 'processing':
-            abspath = self.msi.path.join(self.path, new_step_dir)
-        elif mode is 'reporting':
-            if not self.msi.path.exists(self.report_path):
-                self.msi.mkdir(self.report_path)
-                self.logging('debug', 'Folder:[{}] is created on [{}] class'.format(self.label, dc[2]))
-            abspath = self.msi.path.join(self.report_path, new_step_dir)
-        elif mode is 'masking':
-            if not self.msi.path.exists(self.mask_path):
-                self.msi.mkdir(self.mask_path)
-                self.logging('debug', 'Folder:[{}] is created on [{}] class'.format(self.label, dc[2]))
-            abspath = self.msi.path.join(self.mask_path, new_step_dir)
-        else:
-            exc_msg = '[{}] is not available mode.'.format(mode)
-            self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
-
-        if not self.msi.path.exists(abspath):
-            self.msi.mkdir(abspath)
-            self.logging('debug', '[{}] folder is created.'.format(new_step_dir))
-        else:
-            self.logging('debug', '[{}] folder is already exist.'.format(new_step_dir))
-        self._parse_existing_subdir()
-        return abspath
-
-    def close_step(self, step_code, mode='processing'):
-        """delete the step folder if folder is empty.
-
-        Args:
-            step_code (str): first three character of step dir name
-            mode (str): ['processing', 'reporting']
-        """
-        if mode is 'processing':
-            step_dir = self._get_step_dir(step_code)
-            step_path = self.msi.path.join(self.path,
-                                           step_dir)
-        elif mode is 'reporting':
-            step_dir = self._get_report_dir(step_code)
-            step_path = self.msi.path.join(self.report_path,
-                                           step_dir)
-        else:
-            exc_msg = '[{}] is not available mode.'.format(mode)
-            self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
-
-        if self.msi.path.exists(step_path):
-            if len(self.msi.listdir(step_path)) == 0:
-                self.msi.rmdir(step_path)
-                self.logging('debug', '[{}] folder is deleted.'.format(step_dir))
-            else:
-                pass
-        self.update()
-
-    def clear(self):
-        """clean all empty folders
-        """
-        for step_code in self._existing_step_dir.keys():
-            self.close_step(step_code, mode='processing')
-
-        for step_code in self._existing_report_dir.keys():
-            self.close_step(step_code, mode='reporting')
-
-    def destroy_step(self, step_code, mode='processing'):
-        """delete the step folder if folder is empty.
-
-                Args:
-                    step_code (str): first three character of step dir name
-                    mode (str): ['processing', 'reporting']
-                """
-        if mode is 'processing':
-            step_dir = self._get_step_dir(step_code)
-            step_path = self.msi.path.join(self.path,
-                                           step_dir)
-        elif mode is 'reporting':
-            step_dir = self._get_report_dir(step_code)
-            step_path = self.msi.path.join(self.report_path,
-                                           step_dir)
-        elif mode is 'masking':
-            step_dir = self._get_mask_dir(step_code)
-            step_path = self.msi.path.join(self.mask_path,
-                                           step_dir)
-        else:
-            exc_msg = '[{}] is not available value for the mode.'.format(mode)
-            self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
-
-        if self.msi.path.exists(step_path):
-            if len(self.msi.listdir(step_path)) == 0:
-                self.msi.rmdir(step_path)
-                self.logging('debug', '[{}] folder is deleted.'.format(step_dir))
-            else:
-                import shutil
-                shutil.rmtree(step_path)
-                self.logging('debug', '[{}] folder contained data, but now it is destroyed.'.format(step_dir))
-        self.update()
-
-    def update(self):
-        self.bucket.update()
-        self._parse_existing_subdir()
-        self._parse_executed_subdir()
-
-#%% end
+    def _report_status(self, run_order):
+        self._processed_run_order.append(run_order)
 
 
 class InterfaceHandler(InterfaceBase):
@@ -639,8 +138,7 @@ class InterfaceHandler(InterfaceBase):
             while loop is True:
                 if self.step_code == self._procobj._waiting_list[0]:
                     loop = False
-                time.sleep(_refresh_rate)
-
+                time.sleep(self._refresh_rate)
 
         self._procobj.bucket.update()
         if mode_idx is not 2:
@@ -946,7 +444,7 @@ class InterfaceHandler(InterfaceBase):
                         if ext is not None:
                             if isinstance(ext, str):
                                 fname = change_ext(fname, ext)
-                            elif ext == False:
+                            elif not ext:
                                 fname = remove_ext(fname)
                             else:
                                 exc_msg = '[{}]-wrong extension.'.format(self.step_code)
@@ -1269,3 +767,426 @@ class InterfaceHandler(InterfaceBase):
                          '[{}]-func_managers instance receives all required information.'.format(self.step_code),
                          method='_call_func_manager')
         return managers
+
+
+class InterfaceBuilder(InterfaceHandler):
+    """ for building a interface plugin
+    # TODO: Docstring update is needed, also need to find better way to operate pipeline on thread,
+    # TODO: UserInterface need to be more intuitive. (e.g. need to have a method to test interface)
+
+    Methods:
+        init_step:
+        is_initiated:
+        set_input:
+        set_output:
+        set_temporary:
+        set_var:
+        set_cmd:
+
+    Attributes:
+        path:
+    """
+    def __init__(self, processor, n_threads=None):
+        super(InterfaceBuilder, self).__init__()
+        self._parse_info_from_processor(processor)
+        self._init_attr_for_inspection()
+        self._init_attr_for_execution()
+        if n_threads is None:
+            self._n_threads = processor.scheduler_param['n_threads']
+        else:
+            self._n_threads = n_threads
+        # Initiate scheduler
+        self._schd = Scheduler(n_threads=self._n_threads)
+
+    def reset(self):
+        self.__init__(self._procobj, n_threads=self._n_threads)
+
+    @property
+    def threads(self):
+        """ return the scheduler object """
+        return self._schd
+
+    def init_step(self, title, suffix=None, idx=None, subcode=None, mode='processing'):
+        """initiate step directory, this includes generating step code and creating the directory
+
+        Args:
+            title(str):     the title for the step directory
+            suffix(str):    suffix for the title
+            idx:            index of step
+            subcode:        sub-step code to identify the sub-step process
+            mode (str):     'processing'- create step directory in working path
+                            'reporting' - create step directory in result path
+                            'masking'   - create step directory in mask path
+
+        Raises:
+            Exception:      if wrong mode are inputted
+
+        """
+        self.reset()
+        run_order = self._update_run_order()
+        # add current step code to the step list
+
+        mode_dict = {'processing'   : 1,
+                     'reporting'    : 2,
+                     'masking'      : 3}
+
+        if mode in mode_dict.keys():
+            self._path = self._procobj.init_step(title=title, suffix=suffix,
+                                                 idx=idx, subcode=subcode,
+                                                 mode=mode)
+            if self.step_code not in self._procobj._waiting_list:
+                if self.step_code not in self._procobj._processed_list:
+                    self._procobj._waiting_list.append(self.step_code)
+                    self.logging('debug', 'added waiting list.',
+                                 method='init_step-[{}]'.format(self.step_code))
+                else:
+                    # check if the current step had been processed properly
+                    self._procobj.update()
+                    base = {1: self._procobj._executed,
+                            2: self._procobj._reported,
+                            3: self._procobj._masked, }
+                    if self.step_code in base[mode_dict[mode]].keys():
+                        self.logging('debug',
+                                     'has been processed, \n'
+                                     'so this step will not be executed.',
+                                     method='init_step-[{}]'.format(self.step_code))
+                    else:
+                        self._procobj._processed_list.remove(self.step_code)
+                        self._procobj._waiting_list.append(self.step_code)
+                        self.logging('debug',
+                                     ' has been processed but its empty now. \n'
+                                     'so it is added waiting list again.',
+                                     method='init_step-[{}]'.format(self.step_code))
+
+            else:
+                self.logging('debug', ' is added waiting list.',
+                             method='init_step-[{}]'.format(self.step_code))
+        else:
+            exc_msg = '"{}" is not an available mode.'.format(mode)
+            self.logging('warn', exc_msg, method='init_step-[{}]'.format(self.step_code))
+
+        # self._init_step(mode_dict[mode])
+        daemon = self.get_daemon(self._init_step, run_order, mode_dict[mode])
+
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def set_input(self, label, input_path, filter_dict=None, method=0, mask=False, idx=None, join_modifier=None):
+        """this method sets the input with filename filter, data can be collected from dataset path or working path,
+        as well as masking path if mask is set to True.
+        At least one input path need to be set for building interface.
+
+        If there is multiple input, the total number of jobs will be established from first set of input
+        and all other inputs must have the same number with first input. (inspection function will check it.)
+
+        The method keyword argument is provided the option to apply group statistic,
+        in the regular cases, each command take one master input to create the processed one master output
+        which in the case of method=0. If the method=1 is given, it takes all filtered data using provided filter_dict
+        and treat it as single input, which is useful for running statistics.
+
+        Args:
+            label(str):             label for space holder on command template
+            input_path(str):        absolute path, step directory, datatype or step code
+            filter_dict(dict):      filter set for parsing input data.
+                                    available keys={'contains', 'ignore', 'ext', 'regex', # for filename
+                                                    'subjects', 'sessions}                # for select specific group
+            method (int):           0 - run command for the single master file to generate single master output
+                                    1 - set multiple files as input to generate single master output
+            mask(bool):             True if input is mask file
+            idx(int):               index of the filtered dataset in order to pick one file as input
+                                    across subjects or sessions.
+            join_modifier(dict):    can be used when method=1. this option can be used to alter the way of
+                                    listing the set of inputs.
+                                    available keys={'prefix', 'suffix', # too add additional string on input paths
+                                                    'spacer'}           # use given spacer between set of inputs
+                                                                          (e.g. ',' or '\t') default is single space
+        """
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_input, run_order, label, input_path,
+                                 filter_dict=filter_dict, method=method, mask=mask, idx=idx,
+                                 join_modifier=join_modifier)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def set_static_input(self, label, input_path, filter_dict=None, idx=0, mask=False):
+        run_order = self._update_run_order()
+        daemon = self.get_daemon(self._set_static_input, run_order, label, input_path,
+                                 filter_dict=filter_dict, idx=idx, mask=mask)
+        self._daemons[run_order] = daemon
+
+    def set_output(self, label, prefix=None, suffix=None, modifier=None, ext=None):
+        """This method will set output, if no input prior to this method, it will raise error.
+        For the case of input methods 1 and 2, the output filename will be set as [subject]
+        and [subject_session], respectively, and extension must be specified.
+
+        Args:
+            label(str):             output place-holder for command template,
+                                    'output' will help to prevent repetition of finished step
+            prefix(str):
+            suffix(str):
+            modifier(dict or str):  key(find):value(replace) or file(folder)name
+                                    in case the input method was set to 1,
+                                    user can specify file or folder name of output
+            ext(str or False):      extension if it need to be changed. If False, extension will be removed.
+        """
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_output, run_order, label,
+                                 modifier=modifier, ext=ext, prefix=prefix, suffix=suffix)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    @property
+    def check_output(self):
+        # TODO: need to delete after fix all default plugin
+        # (this is for backward compatibility)
+        return self.set_output_checker
+
+    def set_output_checker(self, label='output', prefix=None, suffix=None, ext=None):
+        """This method generates output filter to prevent execution if the output file is already exists.
+
+        Args:
+            label(str):     main output placeholder on command template
+            prefix(str):    in case the executing command add prefix to the output filename
+            suffix(str):    in case the executing command add suffix to the output filename
+            ext(str):       in case the executing command add extension to the output filename
+        """
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_output_checker, run_order, label,
+                                 prefix=prefix, suffix=suffix, ext=ext)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def set_temporary(self, label, path_only=False):
+        """method to set temporary output step. the structure of temporary folder
+
+        Args:
+            label(str):     temporary output place-holder for command template.
+        """
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_temporary, run_order, label, path_only)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def set_var(self, label, value, quote=False):
+        """ If no input prior to this method, raise error
+
+        Args:
+            label(str):                 place-holder of variable for command template.
+            value(str, int, or list):   value to set as variable on command template
+            quote(bool):                True if the value need to be encapsulated by the quote on command line
+        """
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_var, run_order, label, value,
+                                 quote=quote)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def set_cmd(self, command):
+        """If no input prior to this method, raise error
+
+        Args:
+            command(str):   command template, use decorator '*[label]' to place arguments.
+        """
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_cmd, run_order, command)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def set_func(self, func):
+        run_order = self._update_run_order()
+        # add current step code to the step list
+        daemon = self.get_daemon(self._set_func, run_order, func)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def run(self, mode=None):
+        # submit job to scheduler
+        run_order = self._update_run_order()
+        # link this object to the parents class
+        self._procobj._running_obj[self.step_code] = self
+        # add current step code to the step list
+        daemon = self.get_daemon(self._run, run_order, mode=mode)
+        # update daemon to monitor
+        self._daemons[run_order] = daemon
+
+    def _run(self, run_order, mode=None):
+        """hidden layer to run on daemon"""
+        if self._step_processed is True:
+            pass
+        else:
+            self._wait_my_turn(run_order, 'running interface command..', method='run') # wait until previous command is finished.
+            # command process start from here
+            self._inspect_output()
+            if mode == 'python':
+                self._mngs = self._call_func_manager()
+            else:
+                self._mngs = self._call_manager()
+            for mng in self._mngs:
+                try:
+                    mng.schedule(self._schd, label=self.step_code)
+                except:
+                    self.logging('warn', 'exception is occurred during job scheduling.',
+                                 method='run-[{}]'.format(self.step_code))
+            self.logging('debug', 'processing scheduled.'.format(self.step_code),
+                         method='run-[{}]'.format(self.step_code))
+            self._schd.submit(mode='background', use_label=True)
+            self._schd.join() # because foreground option cannot check the status
+            # command process end here
+
+            inspect_result = self._inspect_run()
+            # update dataset bucket
+            self.logging('debug', 'updating dataset bucket.', method='run-[{}]'.format(self.step_code))
+            self._bucket.update()
+
+            if inspect_result:
+                self.logging('warn', 'missing output file(s).', method='run-[{}]'.format(self.step_code))
+            # parse stdout and stderr
+            self.logging('debug', 'collect STDOUT from workers.', method='run-[{}]'.format(self.step_code))
+
+            for i, workers in self._schd.stdout.items():
+                for j in sorted(workers.keys()):
+                    if workers[j] is None:
+                        self.logging('stdout', 'None\n')
+                    else:
+                        # self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j]).encode('utf-8')))
+                        self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j])))
+            self.logging('debug', 'collect STDERR from workers.', method='run-[{}]'.format(self.step_code))
+
+            for i, workers in self._schd.stderr.items():
+                for j in sorted(workers.keys()):
+                    if workers[j] is None:
+                        self.logging('stderr', 'None\n')
+                    else:
+                        self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
+                        # self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j]).encode('utf-8')))
+
+            # step code update
+            self.clear()
+            # last_step_code = self._procobj._waiting_list[0]
+            # if last_step_code != self.step_code:
+            #     self.logging('warn', '** FATAL ERROR ** step code mismatch.',
+            #                  method='run-[{}]'.format(self.step_code))
+            # else:
+            #     # del self._procobj._running_obj[self.step_code]
+            #     self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
+            # self.logging('debug', 'processed.',
+            #              method='run-[{}]'.format(self.step_code))
+        # update executed folder
+        self._procobj.update()
+
+    @property
+    def waiting_steps(self):
+        return self._procobj._waiting_list
+
+    @property
+    def processed_steps(self):
+        return self._procobj._processed_list
+
+    def remove_from_waitinglist(self):
+       self.clear()
+
+    def clear(self):
+        if self.step_code is not None:
+            last_step_code = self._procobj._waiting_list[0]
+            if last_step_code != self.step_code:
+                self.logging('warn', '** FATAL ERROR ** step code mismatch.',
+                             method='run-[{}]'.format(self.step_code))
+            else:
+                self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
+            self.logging('debug', 'processed.',
+                         method='run-[{}]'.format(self.step_code))
+
+    def get_inputs(self, label):
+        input_ready = False
+        while input_ready is False:
+            try:
+                inputs = self._input_set[label]
+                if isinstance(inputs, str):   # case of input method == 1
+                    inputs = self._input_set[label].split(self._input_spacer)
+                    input_ready = True
+                elif isinstance(inputs, list):
+                    input_ready = True
+                return inputs
+            except:
+                time.sleep(self._refresh_rate)
+        return
+
+    def get_input_ref(self):
+        return self._input_ref
+
+    def run_manually(self, args, mode=None):
+        loop = True
+        start = time.time()
+        managers = []
+        if mode == 'python':
+            while loop:
+                time.sleep(self._refresh_rate)
+                if len(self._func_set.keys()) == 0:
+                    if time.time() - start < self._timeout:
+                        pass
+                    else:
+                        raise Exception('[{}]-no func found'.format(self.step_code))
+                else:
+                    loop = False
+            for j, func in sorted(self._func_set.items()):
+                mng = FuncManager()
+                func_kwargs = self._parse_func_kwargs(func)
+                print('[{}]-arguments in given function: [{}].'.format(self.step_code, list(func_kwargs)))
+                mng.set_func(func)
+                for kw in func_kwargs:
+                    for label, value in args.items():
+                        if kw in label:
+                            mng.set_arg(label=label, args=value)
+                managers.append(mng)
+        else:
+            while loop:
+                time.sleep(self._refresh_rate)
+                if len(self._cmd_set.keys()) == 0:
+                    if time.time() - start < self._timeout:
+                        pass
+                    else:
+                        raise Exception('[{}]-no command found'.format(self.step_code))
+                else:
+                    loop = False
+
+            for i, cmd in sorted(self._cmd_set.items()):
+                mng = Manager()
+                placeholders = self._parse_placeholder(mng, cmd)
+                print('[{}]-placeholder in command template: [{}].'.format(self.step_code,
+                                                                           list(placeholders)))
+                mng.set_cmd(cmd)
+                for ph in placeholders:
+                    for label, value in args.items():
+                        if ph in label:
+                            mng.set_arg(label=label, args=value)
+                managers.append(mng)
+        for mng in managers:
+            try:
+                mng.schedule(self._schd, label=self.step_code)
+            except:
+                raise Exception('[{}]-exception is occurred during job scheduling.'.format(self.step_code))
+
+        print('[{}]-processing scheduled.'.format(self.step_code))
+        self._schd.submit(use_label=True)
+
+        for i, workers in self._schd.stdout.items():
+            for j in sorted(workers.keys()):
+                if workers[j] is None:
+                    print('stdout', 'None\n')
+                else:
+                    # print('stdout', '\n  {}'.format('\n  '.join(workers[j]).encode('utf-8')))
+                    print('stdout', '\n  {}'.format('\n  '.join(workers[j])))
+        for i, workers in self._schd.stderr.items():
+            for j in sorted(workers.keys()):
+                if workers[j] is None:
+                    print('stderr', 'None\n')
+                else:
+                    # print('stderr', '\n  {}'.format(u'\n  '.join(workers[j]).encode('utf-8')))
+                    print('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
+

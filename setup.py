@@ -15,23 +15,24 @@ __version__ = re.search(
 
 __author__ = 'SungHo Lee'
 __email__ = 'shlee@unc.edu'
+__url__ = 'https://github.com/dvm-shlee/pynipt'
 
 setup(name='PyNIPT',
       version=__version__,
       description='Python NeuroImaging Pipeline Tools',
       author=__author__,
       author_email=__email__,
-      url=None,
+      url=__url__,
       license='GNLv3',
       packages=find_packages(),
       install_requires=[
-          'numpy',
-          'miresi',
-          'paralexe',
-          'pandas',
-          'tqdm',
-          'psutil',
-          'shleeh'
+          'numpy>=1.18.0',
+          'pandas>=1.0.0',
+          'tqdm>=4.40.0',
+          'psutil>=5.5.0',
+          'miresi>=0.0.1',
+          'paralexe>=0.0.3',
+          'shleeh>=0.0.3'
                        ],
       # scripts=['',
       #         ],
