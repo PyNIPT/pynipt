@@ -129,6 +129,7 @@ class InterfaceHandler(InterfaceBase):
 
     def __init__(self):
         super(InterfaceHandler, self).__init__()
+        self._schd = None
 
     def _init_step(self, run_order, mode_idx):
         """hidden method for init_step to run on the thread
@@ -828,19 +829,29 @@ class InterfaceBuilder(InterfaceHandler):
     """
     def __init__(self, processor, n_threads=None, relpath=False):
         super(InterfaceBuilder, self).__init__()
-        self._parse_info_from_processor(processor)
-        self._init_attr_for_inspection()
-        self._init_attr_for_execution()
+        self.reset(processor)
+        # self._parse_info_from_processor(processor)
+        # self._init_attr_for_inspection()
+        # self._init_attr_for_execution()
         if n_threads is None:
             self._n_threads = processor.scheduler_param['n_threads']
         else:
             self._n_threads = n_threads
         self._relpath = relpath
+        self.logging('debug', f'n_threads={n_threads}, relpath={relpath}', method='__init__')
         # Initiate scheduler
         self._schd = Scheduler(n_threads=self._n_threads)
 
-    def reset(self):
-        self.__init__(self._procobj, n_threads=self._n_threads)
+    def reset(self, processor=None):
+        if processor is None:
+            processor = self._procobj
+        self._parse_info_from_processor(processor)
+        self._init_attr_for_inspection()
+        self._init_attr_for_execution()
+
+        if self._schd is not None:
+            self._schd = Scheduler(n_threads=self._n_threads)
+        # self.__init__(self._procobj, n_threads=self._n_threads, relpath=self._relpath)
 
     @property
     def threads(self):
@@ -873,11 +884,12 @@ class InterfaceBuilder(InterfaceHandler):
                                                  mode=mode)
             if self._relpath:
                 self._path = os.path.relpath(self._path)
+                self.logging('debug', f'using relative path: {self._path}', method=f'init_step-[{self.step_code}]')
             if self.step_code not in self._procobj.waiting_list:
                 if self.step_code not in self._procobj.processed_list:
                     self._procobj.waiting_list.append(self.step_code)
                     self.logging('debug', 'added waiting list.',
-                                 method='init_step-[{}]'.format(self.step_code))
+                                 method=f'init_step-[{self.step_code}]')
                 else:
                     # check if the current step had been processed properly
                     self._procobj.update()
@@ -916,7 +928,7 @@ class InterfaceBuilder(InterfaceHandler):
         as well as masking path if mask is set to True.
         At least one input path need to be set for building interface.
 
-        If there is multiple input, the total number of jobs will be established from first set of input
+        If there is multiple input, the total numbe of jobs will be established from first set of input
         and all other inputs must have the same number with first input. (inspection function will check it.)
 
         The method keyword argument is provided the option to apply group statistic,

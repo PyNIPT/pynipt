@@ -47,8 +47,15 @@ class Pipeline(object):
 
     You can either use default pipeline packages we provide or load custom designed pipelines
     """
-    def __init__(self, path, **kwargs):
+    def __init__(self, path: str, **kwargs):
         """Initiate class
+        Args:
+            path: Project path, the BIDS dataset must be placed in 'Data'
+            **kwargs: options for Pipeline instance, please see Notes
+        Notes:
+            Available kwargs for this class are listed below. The default values are defined at configuration.
+            logging (bool): Logging object initiated if the value is True
+            n_threads:
 
         :param path:    dataset path
         :param logger:  generate log file (default=True)
@@ -72,7 +79,7 @@ class Pipeline(object):
         # config parser
         cfg = config['Preferences']
         self._logger    = kwargs['logging']     if 'logging'    in kwargs.keys() else cfg.getboolean('logging')
-        self._n_threads = kwargs['n_threads']   if 'n_threads'  in kwargs.keys() else cfg.getint('number_of_thread')
+        self._n_threads = kwargs['n_threads']   if 'n_threads'  in kwargs.keys() else cfg.getint('number_of_threads')
         self._verbose   = kwargs['verbose']     if 'verbose'    in kwargs.keys() else cfg.getboolean('verbose')
 
         if self._verbose:
@@ -94,35 +101,32 @@ class Pipeline(object):
     def installed_packages(self):
         return self._plugin.avail_pkgs
 
-    def set_empty_package(self, title):
-        """Initiate empty package with given title
-
+    def set_scratch_package(self, title):
+        """set scratch package for developing pipeline script
         Args:
-            title:
+            title: name of pipeline package
         """
         self._bucket.update()
         self.detach_package()
-        # self._interface_plugins = \
-        # interface_plugins(self._bucket, title, logger=self._logger, n_threads=self._n_threads)
         self._interface_plugins = self._plugin.get_interfaces()(self._bucket, title,
                                                                 logger=self._logger,
                                                                 n_threads=self._n_threads)
         self._pipeline_title = title
         if self._verbose is True:
-            print('temporary pipeline package [{}] is initiated.'.format(title))
+            print(f'The scratch package [{title}] is initiated.')
 
     @property
     def select_package(self):
         """for a backward compatibility"""
         return self.set_package
 
-    def set_package(self, package_id, **kwargs):
-        """Initiate package
-
-        :param package_id:  Id code for package to initiate
-        :param kwargs:      Input parameters for initiating package
-        :type package_id:   int
-        :type kwargs:       key=value pairs
+    def set_package(self, package_id: int, **kwargs):
+        """set pipeline package from installed plugin
+        Args:
+            package_id: Id code for package to initiate
+            **kwargs: key:value pairs of parameters for this pipeline
+        Raises:
+            IndexError if the package_id is invalid
         """
         self._bucket.update()
 
@@ -131,35 +135,36 @@ class Pipeline(object):
             self._stored_id = package_id
             self._pipeline_title = self.installed_packages[package_id]
         else:
-            raise IndexError
+            raise IndexError('Invalid package id')
         self.reset(**kwargs)
 
         if self._verbose:
             print('Description about this package:\n')
             print(self.selected.__init__.__doc__)
-            print("The pipeline package '{}' is selected.\n"
-                  "Please double check if all parameters are "
-                  "correctly provided before run this pipline".format(self._pipeline_title))
+            print("The pipeline package '{}' is running.\n"
+                  "Please make sure the all parameters are valid "
+                  "for the running pipeline before execution.".format(self._pipeline_title))
             avails = ["\t{} : {}".format(*item) for item in self.selected.installed_pipelines.items()]
-            output = ["List of available pipelines in selected package:"] + avails
+            output = ["List of available pipelines in running package:"] + avails
             print("\n".join(output))
 
+    def import_plugin(self, name, file_path):
+        self._pipeobj.from_file(name, file_path)
+
     def reset(self, **kwargs):
+        """Reset pipeline instance. All items in queue will be reset."""
         if self._pipeline_title is not None:
             self._interface_plugins = self._plugin.get_interfaces()(self._bucket, self._pipeline_title,
                                                                     logger=self._logger,
                                                                     n_threads=self._n_threads)
             self._pipeobj = self._plugin.get_pkgs(self._stored_id)
-            command = 'self.selected = self._pipeobj.{}(self._interface_plugins'.format(self._pipeline_title)
-            if kwargs:
-                command += ', **{})'.format('kwargs')
-            else:
-                command += ')'
-            exec(command)
+            selected_pkg = getattr(self._pipeobj, self._pipeline_title)
+            self.selected = selected_pkg(self._interface_plugins, **kwargs)
         else:
             pass
 
     def check_progression(self):
+        """Method that can realtime progression of pipeline execution."""
         if self._interface_plugins is not None:
             param = self._interface_plugins.scheduler_param
             queued_jobs = len(param['queue'])
@@ -189,56 +194,62 @@ class Pipeline(object):
 
     def set_param(self, **kwargs):
         """Set parameters
-
-        :param kwargs:      Input parameters for current initiated package
+        Args:
+            **kwargs: key:value pairs of parameters for this pipeline
         """
         if self.selected:
             for key, value in kwargs.items():
                 if hasattr(self.selected, key):
                     setattr(self.selected, key, value)
                 else:
-                    raise KeyError
+                    raise KeyError(f'[{key}] is invalid key for this pipeline.')
         else:
-            raise InvalidApproach('You must select Pipeline Package first.')
+            raise InvalidApproach('Pipeline package must be set prior.')
 
     def get_param(self):
         if self.selected:
-            # default pipeline method: installed_packages, interface
-            return dict([(param, getattr(self.selected, param)) for param in dir(self.selected) if param[0] != '_'
-                         if 'pipe_' not in param if param not in ['installed_packages', 'interface']])
+            plugin_name = self.selected.__module__.split('.')[0]
+            return dict([(param, getattr(self.selected, param)) for param in
+                         self._plugin.pipeline_objs[plugin_name].arguments if param not in ['interface']])
         else:
             return None
 
-    def howto(self, idx):
+    def howto(self, pkg: int or str):
         """ Print help document for package
-
         Args:
-            idx(int):       index of available pipeline package
+            pkg: index or full name of pipeline package shown in available packages
         """
-        if isinstance(idx, int):
-            idx = self.installed_packages[idx]
-        if idx in self.installed_packages.values():
-            command = 'print(self._pipeobj.{}.__init__.__doc__)'.format(idx)
-            exec(command)
+        if isinstance(pkg, int):
+            pkg = self.installed_packages[pkg]
+        if pkg in self.installed_packages.values():
+            print(getattr(self._pipeobj, pkg).__init__.__doc__)
 
-    def run(self, idx, **kwargs):
+    def run(self, idx: int, **kwargs):
         """ Execute selected pipeline
-
         Args:
-            idx(int):       index of available pipeline package
-            **kwargs:       key:value pairs of parameters for this pipeline
+            idx(int): index of available pipeline package
+            **kwargs: key:value pairs of parameters for this pipeline
         """
-        self.reset()
         self.set_param(**kwargs)
+        selected_pipeline = getattr(self.selected, f'pipe_{self.selected.installed_pipelines[idx]}')
         if self._verbose:
-            exec('print(self.selected.pipe_{}.__doc__)'.format(self.selected.installed_pipelines[idx]))
-        exec('self.selected.pipe_{}()'.format(self.selected.installed_pipelines[idx]))
+            print(selected_pipeline.__doc__)
+        selected_pipeline()
 
     @property
     def bucket(self):
         return self._bucket
 
     def remove(self, step_code, mode='processing'):
+        """
+
+        Args:
+            step_code:
+            mode:
+
+        Raises:
+            InvalidStepCode
+        """
         if isinstance(step_code, list):
             for s in step_code:
                 self.interface.destroy_step(s, mode=mode)
@@ -312,7 +323,7 @@ class Pipeline(object):
     def _summary(self):
         if self._pipeline_title is not None:
             self.interface.update()
-            s = ['** List of existing steps in selected package [{}]:\n'.format(self._pipeline_title)]
+            s = ['** List of existing steps in running package [{}]:\n'.format(self._pipeline_title)]
             if len(self.interface.executed) is 0:
                 pass
             else:
@@ -358,3 +369,15 @@ class PipelineBuilder(object):
         pipes = [pipe[5:] for pipe in dir(self) if 'pipe_' in pipe]
         output = dict(zip(range(len(pipes)), pipes))
         return output
+
+
+if __name__ == '__main__':
+    print(help(Pipeline))
+    # pipe = Pipeline('../../examples', verbose=False)
+    # pipe.set_package(0)
+    # pipe.howto(0)
+    # print(pipe.get_param())
+    #
+    # pipe._verbose = True
+    # pipe.run(0)
+    # pipe.check_progression()

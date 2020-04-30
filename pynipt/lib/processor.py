@@ -110,7 +110,7 @@ class ProcessorBase(object):
             raise NoneLabel
         else:
             self._label = label
-            self.logging('debug', 'The name of the pipeline package is set as [{}]'.format(label))
+            self.logging('debug', f'The name of the pipeline package is set as [{label}]')
 
     def _disable_logger(self):
         import logging
@@ -146,7 +146,7 @@ class ProcessorBase(object):
         # create working path only, result path creation will happen when reporting is initiated
         if not self.msi.path.exists(self._path):
             self.msi.mkdir(self._path)
-            self.logging('debug', 'Folder:[{}] is created.'.format(self._label))
+            self.logging('debug', f'Folder:[{self._label}] is created.')
 
         if len(self.bucket) != 0:
             # update package path
@@ -242,7 +242,7 @@ class ProcessorBase(object):
         if idx in [0, 1, 3, 4]:
             pass
         else:
-            exc_msg = 'Cannot parsing the attribute from [{}] class'.format(__dc__[idx])
+            exc_msg = f'Cannot parsing the attribute from [{__dc__[idx]}] class'
             self.logging('warn', exc_msg)
             raise IndexError(exc_msg)
 
@@ -320,7 +320,7 @@ class ProcessorBase(object):
                     steps = self._sort_params(filtered.df[filtered.df.columns[column_index[i]]])
 
                     # Below loop will delete the step_code that not existing anymore.
-                    orig_steplist = ['{}_{}'.format(code, title) for code, title in list(dic.items())]
+                    orig_steplist = [f'{code}_{title}' for code, title in list(dic.items())]
                     bool_list = [s not in steps for s in orig_steplist]
 
                     for idx in list(filter(lambda x: bool_list[x], range(len(bool_list)))):
@@ -369,7 +369,7 @@ class ProcessorBase(object):
     def _get_step_dir(self, step_code):
         """return a directory name of working step path"""
         if step_code.upper() in self._existing_step_dir.keys():
-            return "{}_{}".format(step_code, self._existing_step_dir[step_code])
+            return f"{step_code}_{self._existing_step_dir[step_code]}"
         else:
             exc_msg = 'given step code is not exist.'
             self.logging('warn', exc_msg)
@@ -378,7 +378,7 @@ class ProcessorBase(object):
     def _get_temp_dir(self, step_code):
         """return a directory name of working step path"""
         if step_code.upper() in self._existing_temp_dir.keys():
-            return "{}_{}".format(step_code, self._existing_temp_dir[step_code])
+            return f"{step_code}_{self._existing_temp_dir[step_code]}"
         else:
             exc_msg = 'given step code is not exist.'
             self.logging('warn', exc_msg)
@@ -387,7 +387,7 @@ class ProcessorBase(object):
     def _get_report_dir(self, step_code):
         """return directory name of result step path"""
         if step_code.upper() in self._existing_report_dir.keys():
-            return "{}_{}".format(step_code, self._existing_report_dir[step_code])
+            return f"{step_code}_{self._existing_report_dir[step_code]}"
         else:
             exc_msg = 'given report code is not exist.'
             self.logging('warn', exc_msg)
@@ -568,10 +568,10 @@ class ProcessorHandler(ProcessorBase):
                 subcode = 0
             if idx is None:
                 # the code for the very first step will be 010
-                new_step_code = '01{}'.format(subcode)
+                new_step_code = f'01{subcode}'
             else:
                 # if idx are given, then use it
-                new_step_code = "{}{}".format(str(idx).zfill(2), subcode)
+                new_step_code = f"{str(idx).zfill(2)}{subcode}"
         else:
             # parse step code from list of executed steps
             existing_codes = sorted(existing_dir.keys())
@@ -642,10 +642,10 @@ class ProcessorHandler(ProcessorBase):
                 if new_step_code in existing_codes:
                     if title not in existing_titles:
                         exc_msg = ['the step code had been used already.\n',
-                                   'current_title: {}'.format(title),
+                                   f'current_title: {title}',
                                    'existing_title:']
                         for t in existing_titles:
-                            exc_msg.append('\t{}'.format(t))
+                            exc_msg.append(f'\t{t}')
                         self.logging('warn', '\n'.join(exc_msg))
                         raise InvalidStepCode('\n'.join(exc_msg))
 
@@ -657,12 +657,12 @@ class ProcessorHandler(ProcessorBase):
         elif mode is 'reporting':
             if not self.msi.path.exists(self.report_path):
                 self.msi.mkdir(self.report_path)
-                self.logging('debug', 'Folder:[{}] is created on [{}] class'.format(self.label, __dc__[2]))
+                self.logging('debug', f'Folder:[{self.label}] is created on [{__dc__[2]}] class')
             abspath = self.msi.path.join(self.report_path, new_step_dir)
         elif mode is 'masking':
             if not self.msi.path.exists(self.mask_path):
                 self.msi.mkdir(self.mask_path)
-                self.logging('debug', 'Folder:[{}] is created on [{}] class'.format(self.label, __dc__[2]))
+                self.logging('debug', f'Folder:[{self.label}] is created on [{__dc__[2]}] class')
             abspath = self.msi.path.join(self.mask_path, new_step_dir)
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
@@ -671,9 +671,9 @@ class ProcessorHandler(ProcessorBase):
 
         if not self.msi.path.exists(abspath):
             self.msi.mkdir(abspath)
-            self.logging('debug', '[{}] folder is created.'.format(new_step_dir))
+            self.logging('debug', f'[{new_step_dir}] folder is created.')
         else:
-            self.logging('debug', '[{}] folder is already exist.'.format(new_step_dir))
+            self.logging('debug', f'[{new_step_dir}] folder is already exist.')
         self._parse_existing_subdir()
         return abspath
 
@@ -693,14 +693,14 @@ class ProcessorHandler(ProcessorBase):
             step_path = self.msi.path.join(self.report_path,
                                            step_dir)
         else:
-            exc_msg = '[{}] is not available mode.'.format(mode)
+            exc_msg = f'[{mode}] is not available mode.'
             self.logging('warn', exc_msg)
             raise InvalidMode(exc_msg)
 
         if self.msi.path.exists(step_path):
             if len(self.msi.listdir(step_path)) == 0:
                 self.msi.rmdir(step_path)
-                self.logging('debug', '[{}] folder is deleted.'.format(step_dir))
+                self.logging('debug', f'[{step_dir}] folder is deleted.')
             else:
                 pass
         self.update()
@@ -734,18 +734,18 @@ class ProcessorHandler(ProcessorBase):
             step_path = self.msi.path.join(self.mask_path,
                                            step_dir)
         else:
-            exc_msg = '[{}] is not available value for the mode.'.format(mode)
+            exc_msg = f'[{mode}] is not available value for the mode.'
             self.logging('warn', exc_msg)
             raise InvalidMode(exc_msg)
 
         if self.msi.path.exists(step_path):
             if len(self.msi.listdir(step_path)) == 0:
                 self.msi.rmdir(step_path)
-                self.logging('debug', '[{}] folder is deleted.'.format(step_dir))
+                self.logging('debug', f'[{step_dir}] folder is deleted.')
             else:
                 import shutil
                 shutil.rmtree(step_path)
-                self.logging('debug', '[{}] folder contained data, but now it is destroyed.'.format(step_dir))
+                self.logging('debug', f'[{step_dir}] folder contained data, but now it is destroyed.')
         self.update()
 
     def update(self):
@@ -787,11 +787,11 @@ class Processor(ProcessorHandler):
         cfg = config['Preferences']
         if 'n_threads' in kwargs.keys():
             if kwargs['n_threads'] is None:
-                self._n_threads = cfg.getint('number_of_thread')
+                self._n_threads = cfg.getint('number_of_threads')
             else:
                 self._n_threads = kwargs.pop('n_threads')
         else:
-            self._n_threads = cfg.getint('number_of_thread')
+            self._n_threads = cfg.getint('number_of_threads')
         super(Processor, self).__init__(*args, **kwargs)
 
         # install default interface in plugin folder
@@ -870,27 +870,27 @@ class Processor(ProcessorHandler):
 
         """
         s = list()
-        s.append("** Summary of Processor instance initiated for [{}].\n".format(self.label))
-        s.append("- Abspath of initiated package:\n\t{}".format(self.path))
-        s.append("- The base dataclass of updated attributes:\n\t{}".format(__dc__[self._pre_idx]))
-        s.append("- Available attributes:\n\t{}".format(self.bucket.param_keys[self._pre_idx]))
+        s.append(f"** Summary of Processor instance initiated for [{self.label}].\n")
+        s.append(f"- Abspath of initiated package:\n\t{self.path}")
+        s.append(f"- The base dataclass of updated attributes:\n\t{__dc__[self._pre_idx]}")
+        s.append(f"- Available attributes:\n\t{self.bucket.param_keys[self._pre_idx]}")
         if len(self._executed) is 0:
             pass
         else:
             s.append("- Processed steps:")
             for i, step in self._executed.items():
-                s.append("\t{}: {}".format(i, step))
+                s.append(f"\t{i}: {step}")
         if len(self._reported) is 0:
             pass
         else:
             s.append("- Reported steps:")
             for i, step in self._reported.items():
-                s.append("\t{}: {}".format(i, step))
+                s.append(f"\t{i}: {step}")
         if len(self._masked) is 0:
             pass
         else:
             s.append("- Masked data:")
             for i, step in self._masked.items():
-                s.append("\t{}: {}".format(i, step))
+                s.append(f"\t{i}: {step}")
         output = '\n'.join(s)
         return output

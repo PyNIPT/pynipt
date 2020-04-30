@@ -6,7 +6,8 @@ from ..config import config
 import warnings
 import pandas as pd
 
-__dc__ = [config.get('Dataset structure', c) for c in ['dataset_path', 'working_path', 'results_path', 'masking_path', 'temporary_path']]
+__dc__ = [config.get('Dataset structure', c) for c in ['dataset_path', 'working_path', 'results_path',
+                                                       'masking_path', 'temporary_path']]
 pd.set_option("display.max_rows", int(config.get('Display', 'Max_Row')))
 pd.set_option("display.max_colwidth", int(config.get('Display', 'Max_Colwidth')))
 
@@ -60,16 +61,13 @@ class BucketBase(object):
     def _abspath(self, path):
         return self.msi.path.abspath(path)
 
-    def compose_columns(self, idx, max_depth):
-        """This method checks the properness of given dataclass index and maximum depth.
-
+    def compose_columns(self, idx: int, max_depth: int):
+        """Method for checking the indexed dataclass has given maximum depth.
         Args:
-            idx:
-            max_depth:
-
+            idx: index of dataclass
+            max_depth: depth of data structure
         Returns:
             columns (list) if successful, False otherwise.
-
         Raises:
             IndexError if idx out of bound.
         """
@@ -117,18 +115,14 @@ class BucketBase(object):
             raise IndexError
         return columns
 
-    def parser(self, path):
-        """This method checks the maximum depth of the given path,
-        and return the file list in the deepest location
-
-        This method will work both for remote and local buckets.
-
+    def parser(self, path: str) -> (dict, int):
+        """Method for checking the maximum depth of the given path,
+        and return the file list in the deepest location.
         Args:
-            path (str):
-
+            path: the path to be parsed for investigating its data structure
         Returns:
-            container (dict):
-            max_depth (int):
+            container: dictionary that storing sub-files and sub-dirs in given path
+            max_depth: maximum depth of the given path
         """
         # convert to absolute path
         path = self._abspath(path)
@@ -164,15 +158,14 @@ class BucketBase(object):
         return self._inspect_container(container, max_depth)
 
     @staticmethod
-    def _inspect_container(container, max_depth):
+    def _inspect_container(container: dict, max_depth: int) -> (dict, int):
         """Filter out the containers only having empty folder.
         Args:
-            container (dict):
-            max_depth (int):
-
+            container: dictionary that storing sub-files and sub-dirs in given path
+            max_depth: maximum depth of the given path
         Returns:
-            container (dict):
-            max_depth (int):
+            container: inspected container
+            max_depth: maximum depth after inspection
         """
         # If the deepest folder does not contains any files
         if max_depth == 0:
@@ -182,23 +175,19 @@ class BucketBase(object):
             for comp in container[max_depth].values():
                 for f in comp['sub_files']:
                     counter += len(f)
-
             if counter == 0:
                 del (container[max_depth])
                 max_depth -= 1
         return container, max_depth
 
-    def scan(self, idx):
+    def scan(self, idx: int) -> bool:
         """The method to scan contents in selected dataclass.
-
         Notes:
             Using 'parser' methods, this method collect the maximal depth
             and collect all file information of the dataclass folder.
             This method is designed to work in both remote and local buckets.
-
         Args:
-            idx (int): the index of the dataclass.
-
+            idx: the index of the dataclass.
         Returns:
             True if successful, False otherwise.
         """
@@ -259,7 +248,7 @@ class BucketBase(object):
                     for _ in items:
                         if len(iter_obj[i]) > 0:
                             for f in iter_obj[i]:
-                                if f in config['Dataset structure']['ignore'].split(','):
+                                if f in [fn.strip() for fn in config['Dataset structure']['ignore'].split(',')]:
                                     pass
                                 else:
                                     abspath = self.msi.path.join(base_path, f)
@@ -272,16 +261,15 @@ class BucketBase(object):
             self._params[idx] = param(**param_dict)
         return True
 
-    def update(self, idx=None):
-        """This method performs scan method on given dataclass or all dataclasses.
-
+    def update(self, idx: int = None) -> bool or list:
+        """The method to scan the dataclass of given index or all in case no index is given.
         Args:
             idx (int): index number for dataclass of interest.
-
         Returns:
             True if successful, False otherwise.
-            In case the idx value is not given, return list of True and False according to each idx.
-
+            Notes:
+                In case the idx value is not given, return list containing True or False
+                for each dataclass ordered by its index.
         Raises:
             IndexError if idx is out of bound.
         """
@@ -305,16 +293,13 @@ class BucketBase(object):
 
 class BucketHandler(BucketBase):
     """The class to navigate the dataset information.
-
     # in python, a handler is most often used to identify functions written to deal with log messages
     # in general, a handler is a term describing any function which takes request and generate a response in some form
 
     The role of this class is parse the data structure from data folder,
     and keep it as properties to be utilized by other class.
-
     Notes:
         The Handler level is oriented to filter the data to fine specific group of data.
-
     Args:
         path (str): project folder.
     """
@@ -459,7 +444,6 @@ class BucketHandler(BucketBase):
 
     def apply_filters(self):
         """The method to create filtered dataset using stored filter information."""
-
         def get_filtered_dataset(dataset, params, attributes, keyword, regex=False):
             """The method to perform dataset filtering.
             Args:
@@ -519,7 +503,6 @@ class BucketHandler(BucketBase):
                 fname_att = self._column_info[idx][-2]
 
                 if 'args' in list_param_keys:  # legacy filter method
-
                     for i, att in enumerate(finfo_att):
                         results = [finfo for finfo in filtered if finfo._asdict()[att] \
                                    in filter_params['args']]
@@ -557,9 +540,8 @@ class Bucket(BucketHandler):
     """
     The dataset bucket class is designed to provide low-level convenient function
     for handling and filtering the dataset as object.
-
-    This class contains user friendly print out function for summarizing information for the dataset
-
+    Notes:
+        This class contains user friendly print out function for summarizing information for the dataset
 
     Properties:
         path (str): absolute path of dataset.
@@ -632,9 +614,10 @@ class Bucket(BucketHandler):
     def df(self):
         try:
             return self.get_df(self._idx, filtered=True).sort_values(by=['Abspath']).reset_index(drop=True)
+        except (AttributeError, ValueError):
+            return pd.DataFrame()
         except:
-            import pandas
-            return pandas.DataFrame()
+            raise UnexpectedError
 
     def _summary(self, idx=None):
         if idx is not None:
