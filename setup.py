@@ -30,8 +30,8 @@ setup(name='PyNIPT',
           'pandas>=1.0.0',
           'tqdm>=4.40.0',
           'psutil>=5.5.0',
-          'paralexe>=0.0.3',
-          'shleeh>=0.0.3'
+          'paralexe>=0.1.0',
+          'shleeh>=0.0.4'
                        ],
       # scripts=['',
       #         ],
