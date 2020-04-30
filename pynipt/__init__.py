@@ -15,7 +15,7 @@ from .config import cfg_path as __cfg_path, \
 from .utils import intensive_mkdir as __mkdir
 from paralexe import Scheduler
 
-__version__ = '0.1.0'
+__version__ = '0.1.1b0'
 __all__ = ['Bucket',
            'Processor',
            'InterfaceBuilder',

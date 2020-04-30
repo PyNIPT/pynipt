@@ -1,7 +1,7 @@
-from shleeh.errors import *
+from ..errors import *
 import os
 import re
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 from ..config import config
 import warnings
 import pandas as pd
@@ -21,12 +21,6 @@ class BucketBase(object):
     Notes:
         The Base level is oriented to interact with default properties setting.
         Particularly, scan the folder and parse the data structure.
-
-    Attributes:
-        path (str): absolute path of dataset.
-        columns (dict): columns for each dataclass
-        param_keys (dict): the set of keys to indicate item to filter
-        params (dict): the set of parameters which can be used for the filter for each dataclass
     """
     def __init__(self):
         self._path = None
@@ -237,8 +231,10 @@ class BucketBase(object):
                         # Due to the above reasons, at the maximum depth, both files
                         # and folders treated as the report components.
                         iter_obj.extend(comp['sub_files'] + comp['sub_dirs'])
-                except:
+                except TypeError:
                     return False
+                except:
+                    raise UnexpectedError
 
             # processing cases
             else:
@@ -252,7 +248,7 @@ class BucketBase(object):
             i = 0
             for j in container:
                 for components in container[j]['path_comp']:
-                    basepath = self.msi.path.join(path, *components)
+                    base_path = self.msi.path.join(path, *components)
                     for p, comp in enumerate(components):
                         param_dict[param_keys[p]].append(comp)
                         param_dict[param_keys[p]] = sorted(list(set(param_dict[param_keys[p]])))
@@ -266,7 +262,7 @@ class BucketBase(object):
                                 if f in config['Dataset structure']['ignore'].split(','):
                                     pass
                                 else:
-                                    abspath = self.msi.path.join(basepath, f)
+                                    abspath = self.msi.path.join(base_path, f)
                                     list_finfo.append(finfo(**dict(zip(columns, components + [f, abspath]))))
                         i += 1
 
@@ -487,7 +483,7 @@ class BucketHandler(BucketBase):
                     pass
                 else:
                     # Wrong filter
-                    raise Exception
+                    raise InvalidFilter
                 result = []
                 if regex is False:
                     if keyword == 'ext':
@@ -511,7 +507,7 @@ class BucketHandler(BucketBase):
                 return list(set(sum(result, [])))
             else:
                 # No matched key
-                raise Exception
+                raise KeyError
 
         for idx, filter_params in self._filter_params.items():
             filtered = self._dataset[idx]
@@ -563,6 +559,13 @@ class Bucket(BucketHandler):
     for handling and filtering the dataset as object.
 
     This class contains user friendly print out function for summarizing information for the dataset
+
+
+    Properties:
+        path (str): absolute path of dataset.
+        columns (dict): columns for each dataclass
+        param_keys (dict): the set of keys to indicate item to filter
+        params (dict): the set of parameters which can be used for the filter for each dataclass
     """
 
     def __init__(self, path):
@@ -630,8 +633,8 @@ class Bucket(BucketHandler):
         try:
             return self.get_df(self._idx, filtered=True).sort_values(by=['Abspath']).reset_index(drop=True)
         except:
-            import pandas as pd
-            return pd.DataFrame()
+            import pandas
+            return pandas.DataFrame()
 
     def _summary(self, idx=None):
         if idx is not None:

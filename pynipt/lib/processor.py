@@ -66,7 +66,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'Invalid input argument.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InvalidInputArg(exc_msg)
         if label is not None:
             self.prepare_package_dir(label)
 
@@ -136,7 +136,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'label is not properly set.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InvalidLabel(exc_msg)
 
         self._path  = self.msi.path.join(self.bucket.path, __dc__[1], self._label)
         self._rpath = self.msi.path.join(self.bucket.path, __dc__[2], self._label)
@@ -158,7 +158,7 @@ class ProcessorBase(object):
             level (str): 'debug', 'warn', 'stdout', or 'stderr'
             message (str): The message for logging.
         Raises:
-            Exception: if level is not provided.
+            InvalidLoggingLevel: if level is not provided.
         """
         if self._logger is not None:
             if level == 'debug':
@@ -212,10 +212,10 @@ class ProcessorBase(object):
         for f in [debug_file, debug_file, stdout_file, stderr_file]:
             handlers.append(logging.FileHandler(f))
 
-        def init_handlers(handler, level, format):
-            handler.setLevel(level)
-            handler.addFilter(LoggerFilter(level))
-            handler.setFormatter(format)
+        def init_handlers(handler_, level, format):
+            handler_.setLevel(level)
+            handler_.addFilter(LoggerFilter(level))
+            handler_.setFormatter(format)
 
         levels = [logging.DEBUG, logging.WARNING, logging.INFO, logging.ERROR]
         formats = [debug_fmt] * 2 + [output_fmt] * 2
@@ -244,7 +244,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'Cannot parsing the attribute from [{}] class'.format(__dc__[idx])
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise IndexError(exc_msg)
 
         # clear previous attributes
         if self._pre_idx is not None:
@@ -323,7 +323,7 @@ class ProcessorBase(object):
                     orig_steplist = ['{}_{}'.format(code, title) for code, title in list(dic.items())]
                     bool_list = [s not in steps for s in orig_steplist]
 
-                    for idx in list(filter(lambda i: bool_list[i], range(len(bool_list)))):
+                    for idx in list(filter(lambda x: bool_list[x], range(len(bool_list)))):
                         del dic[orig_steplist[idx].split('_')[0]]
                     for s in steps:
                         if i == 3:
@@ -336,7 +336,8 @@ class ProcessorBase(object):
                             dic[self._pattern.sub(r'\1', s)] = s[4:]
 
     def _parse_existing_subdir(self):
-        """internal method to update all subdir information that created in each dataclass folders."""
+        """internal method to update all subdir information
+        that created in each dataclass folders."""
         msi = self.msi
         steps = [d for d in msi.listdir(self.path) if msi.path.isdir(msi.path.join(self.path, d))]
         self._existing_step_dir = {self._pattern.sub(r'\1', s): s[4:] for s in steps}
@@ -344,20 +345,26 @@ class ProcessorBase(object):
         try:
             reports = [d for d in msi.listdir(self.report_path) if msi.path.isdir(msi.path.join(self.report_path, d))]
             self._existing_report_dir = {self._pattern.sub(r'\1', s): s[4:] for s in reports}
-        except:
+        except FileNotFoundError:
             self._existing_report_dir = dict()
+        except:
+            raise UnexpectedError
 
         try:
             masks = [d for d in msi.listdir(self.mask_path) if msi.path.isdir(msi.path.join(self.mask_path, d))]
             self._existing_mask_dir = {self._pattern.sub(r'\1', s): s[4:] for s in masks}
-        except:
+        except FileNotFoundError:
             self._existing_mask_dir = dict()
+        except:
+            raise UnexpectedError
 
         try:
             temps = [d for d in msi.listdir(self.temp_path) if msi.path.isdir(msi.path.join(self.temp_path, d))]
             self._existing_temp_dir = {self._pattern.sub(r'\1', s): s[4:] for s in temps}
-        except:
+        except FileNotFoundError:
             self._existing_temp_dir = dict()
+        except:
+            raise UnexpectedError
 
     def _get_step_dir(self, step_code):
         """return a directory name of working step path"""
@@ -366,7 +373,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'given step code is not exist.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise KeyError(exc_msg)
 
     def _get_temp_dir(self, step_code):
         """return a directory name of working step path"""
@@ -375,7 +382,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'given step code is not exist.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise KeyError(exc_msg)
 
     def _get_report_dir(self, step_code):
         """return directory name of result step path"""
@@ -384,7 +391,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'given report code is not exist.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise KeyError(exc_msg)
 
     def _get_mask_dir(self, step_code):
         """return directory name of marking step path"""
@@ -393,7 +400,7 @@ class ProcessorBase(object):
         else:
             exc_msg = 'given mask code is not exist.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise KeyError(exc_msg)
 
     @staticmethod
     def _sort_params(params):
@@ -439,7 +446,7 @@ class ProcessorHandler(ProcessorBase):
             input_obj ('str' or 'tuple'):
 
         Raises:
-            Exception:
+            InspectionFailure
         """
         if isinstance(input_path, str):
             pattern = re.compile(r'\w{2}[0A-Z]')
@@ -457,10 +464,10 @@ class ProcessorHandler(ProcessorBase):
                         # return self.msi.path.join(self.bucket.path, dc[3], self._get_mask_dir(input_path.upper())
                         input_path = self._get_mask_dir(input_path.upper())
                     else:
-                        raise Exception
+                        raise UnexpectedError
                 except:
                     self.logging('warn', exc_msg)
-                    raise Exception(exc_msg)
+                    raise InspectionFailure(exc_msg)
             else:
                 exc_msg = 'Cannot find the datatype mapped with input_path.'
                 try:
@@ -474,14 +481,14 @@ class ProcessorHandler(ProcessorBase):
                         # return self.msi.path.join(self.path, self._get_step_dir(input_path.upper()))
                         input_path = self._get_step_dir(input_path.upper())
                     else:
-                        raise Exception
+                        raise UnexpectedError
                 except:
                     self.logging('warn', exc_msg)
-                    raise Exception(exc_msg)
+                    raise InspectionFailure(exc_msg)
         else:
             exc_msg = 'The given input cannot pass the inspection.'
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InspectionFailure(exc_msg)
 
         return input_path
 
@@ -503,7 +510,7 @@ class ProcessorHandler(ProcessorBase):
         try:
             if int(substep_code) == 0:
                 substep_code = None
-        except:
+        except ValueError:
             pass
         return step_idx, substep_code
 
@@ -525,13 +532,13 @@ class ProcessorHandler(ProcessorBase):
         avail_codes = string.ascii_uppercase
 
         if mode in ['processing', 'reporting', 'masking']:
-            existing_dir = dict(list(self._existing_step_dir.items()) \
-                                + list(self._existing_mask_dir.items()) \
+            existing_dir = dict(list(self._existing_step_dir.items())
+                                + list(self._existing_mask_dir.items())
                                 + list(self._existing_report_dir.items()))
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InvalidMode(exc_msg)
 
         # inspect idx and subcode
         if idx is not None:
@@ -540,7 +547,7 @@ class ProcessorHandler(ProcessorBase):
             else:
                 exc_msg = 'The given step index is out of range (0 - 99).'
                 self.logging('warn', exc_msg)
-                raise Exception(exc_msg)
+                raise InvalidStepCode(exc_msg)
         if subcode is not None:
             if isinstance(subcode, str):
                 subcode = subcode.upper()
@@ -549,7 +556,7 @@ class ProcessorHandler(ProcessorBase):
             else:
                 exc_msg = 'The given sub-step code is out of range (0 or A-Z).'
                 self.logging('warn', exc_msg)
-                raise Exception(exc_msg)
+                raise InvalidStepCode(exc_msg)
 
         # update suffix to title
         if suffix is not None:
@@ -575,16 +582,16 @@ class ProcessorHandler(ProcessorBase):
             if len(duplicated_title_idx) != 0:
                 # since will not allow duplicated title, it will be not over 1
                 if idx is not None:
-                    exc_msg = 'Duplicated title is used, please use suffix to make it distinct.'
+                    exc_msg = 'Duplicated title, please use suffix to make it distinct.'
                     if idx == int(existing_codes[duplicated_title_idx[0]][:2]):
                         new_step_code = existing_codes[duplicated_title_idx[0]]
                         if subcode is not None:
                             if new_step_code[-1] != str(subcode):
                                 self.logging('warn', exc_msg)
-                                raise Exception(exc_msg)
+                                raise Duplicated(exc_msg)
                     else:
                         self.logging('warn', exc_msg)
-                        raise Exception(exc_msg)
+                        raise Duplicated(exc_msg)
                 else:
                     new_step_code = existing_codes[duplicated_title_idx[0]]
 
@@ -615,7 +622,7 @@ class ProcessorHandler(ProcessorBase):
                                     # The number of allowable sub-step code limited between 0 and A-Z
                                     exc_msg = 'The sub-step code is exceed its limit.'
                                     self.logging('warn', exc_msg)
-                                    raise Exception(exc_msg)
+                                    raise InvalidStepCode(exc_msg)
                                 new_substep_code = avail_codes[new_substep_code_idx]
                             else:
                                 new_substep_code = avail_codes[0]
@@ -625,7 +632,7 @@ class ProcessorHandler(ProcessorBase):
                         # subcode must use with idx
                         exc_msg = 'not allowed to use sub-step code without idx argument.'
                         self.logging('warn', exc_msg)
-                        raise Exception(exc_msg)
+                        raise InvalidStepCode(exc_msg)
 
                     new_substep_code = 0
                     new_step_idx = max(existing_step_idx) + 1
@@ -640,7 +647,7 @@ class ProcessorHandler(ProcessorBase):
                         for t in existing_titles:
                             exc_msg.append('\t{}'.format(t))
                         self.logging('warn', '\n'.join(exc_msg))
-                        raise Exception('\n'.join(exc_msg))
+                        raise InvalidStepCode('\n'.join(exc_msg))
 
         # dir name
         new_step_dir = "{}_{}".format(new_step_code, title)
@@ -660,7 +667,7 @@ class ProcessorHandler(ProcessorBase):
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InvalidMode(exc_msg)
 
         if not self.msi.path.exists(abspath):
             self.msi.mkdir(abspath)
@@ -688,7 +695,7 @@ class ProcessorHandler(ProcessorBase):
         else:
             exc_msg = '[{}] is not available mode.'.format(mode)
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InvalidMode(exc_msg)
 
         if self.msi.path.exists(step_path):
             if len(self.msi.listdir(step_path)) == 0:
@@ -729,7 +736,7 @@ class ProcessorHandler(ProcessorBase):
         else:
             exc_msg = '[{}] is not available value for the mode.'.format(mode)
             self.logging('warn', exc_msg)
-            raise Exception(exc_msg)
+            raise InvalidMode(exc_msg)
 
         if self.msi.path.exists(step_path):
             if len(self.msi.listdir(step_path)) == 0:
@@ -795,6 +802,26 @@ class Processor(ProcessorHandler):
         self.update()
 
     @property
+    def waiting_list(self):
+        return self._waiting_list
+
+    @property
+    def processed_list(self):
+        return self._processed_list
+
+    @property
+    def executed(self):
+        return self._executed
+
+    @property
+    def reported(self):
+        return self._reported
+
+    @property
+    def masked(self):
+        return self._masked
+
+    @property
     def running_obj(self):
         """This property is the placeholder to save InterfaceBuilder instance.
         """
@@ -806,6 +833,18 @@ class Processor(ProcessorHandler):
         return dict(queue=self._waiting_list,
                     done=self._processed_list,
                     n_threads=self._n_threads)
+
+    @property
+    def get_step_dir(self):
+        return self._get_step_dir
+
+    @property
+    def get_mask_dir(self):
+        return self._get_mask_dir
+
+    @property
+    def get_report_dir(self):
+        return self._get_report_dir
 
     @staticmethod
     def get_daemon(func, *args, **kwargs):

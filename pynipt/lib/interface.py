@@ -2,6 +2,7 @@ import time
 from paralexe import Manager, FuncManager, Scheduler
 from ..config import config
 from ..utils import *
+from ..errors import *
 
 
 class InterfaceBase(object):
@@ -12,6 +13,8 @@ class InterfaceBase(object):
 
     """
     def __init__(self):
+        # private
+        self._path = None
         pass
 
     def _parse_info_from_processor(self, processor):
@@ -20,7 +23,6 @@ class InterfaceBase(object):
         self._bucket = self._procobj.bucket
         self._label = processor.label
         self._multi_session = self._bucket.is_multi_session()
-        self._path = None                   # output path
 
     def _init_attr_for_inspection(self):
         # attributes for the inspection
@@ -52,10 +54,14 @@ class InterfaceBase(object):
         return self._procobj.get_daemon
 
     @property
+    def mngs(self):
+        return self._mngs
+
+    @property
     def msi(self):
         return self._msi
 
-    def logging(self, level: str, message: str, method: str=None):
+    def logging(self, level: str, message: str, method: str = None):
         """The helper method to log message. If the logger is not initiated,
         only log the message if logger is initiated.
 
@@ -65,7 +71,7 @@ class InterfaceBase(object):
             method
 
         Raises:
-            Exception: if level is not provided.
+            ErrorInThread: if level is not provided.
         """
         classname = 'InterfaceBuilder'
         if method is not None:
@@ -74,7 +80,7 @@ class InterfaceBase(object):
             message = '{}-{}'.format(classname, message)
         self._procobj.logging(level, message)
         if level == 'warn':
-            raise Exception(message)
+            raise ErrorInThread(message)
 
     @property
     def path(self):
@@ -119,6 +125,8 @@ class InterfaceBase(object):
 
 
 class InterfaceHandler(InterfaceBase):
+    _errterm: str or list
+
     def __init__(self):
         super(InterfaceHandler, self).__init__()
 
@@ -130,13 +138,13 @@ class InterfaceHandler(InterfaceBase):
             self.logging('warn', 'init_step must be perform first for building command interface.',
                          method='init_step')
 
-        if len(self._procobj._waiting_list) is 0:
+        if len(self._procobj.waiting_list) is 0:
             # the step_code exists in the processed_list, so no need to wait
             self._step_processed = True
         else:
             loop = True
             while loop is True:
-                if self.step_code == self._procobj._waiting_list[0]:
+                if self.step_code == self._procobj.waiting_list[0]:
                     loop = False
                 time.sleep(self._refresh_rate)
 
@@ -144,24 +152,29 @@ class InterfaceHandler(InterfaceBase):
         if mode_idx is not 2:
             try:
                 self._procobj.update_attributes(mode_idx)
-            except:
+            except IndexError:
                 self._procobj.update_attributes(1)
+            except:
+                raise UnexpectedError
+
         self.logging('debug', '[{}]-step initiated.'.format(self.step_code),
                      method='init_step')
         self._report_status(run_order)
 
     def _set_input(self, run_order, label, input_path, filter_dict,
-                   method, idx, mask, join_modifier):
+                   method, idx, mask, join_modifier, relpath):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
         else:
-            self._wait_my_turn(run_order, '{} label assigned to input_path [{}]'.format(label, input_path), method='set_input')
+            self._wait_my_turn(run_order,
+                               '{} label assigned to input_path [{}]'.format(label, input_path),
+                               method='set_input')
 
             method_name = 'set_input'
-            num_inputset = len(self._input_set.keys())
+            num_input_set = len(self._input_set.keys())
 
-            if num_inputset > 0:
+            if num_input_set > 0:
                 if self._input_method != method:
                     exc_msg = 'input method is not match with prior set input(s).'
                     self.logging('warn', exc_msg, method=method_name)
@@ -180,7 +193,7 @@ class InterfaceHandler(InterfaceBase):
                 exc_msg = 'insufficient filter_dict.'
                 if isinstance(filter_dict, dict):
                     for key in filter_dict.keys():
-                        if key not in self._bucket._fname_keys:
+                        if key not in self._bucket.fname_keys:
                             self.logging('warn', exc_msg, method=method_name)
                 else:
                     self.logging('warn', exc_msg, method=method_name)
@@ -196,12 +209,15 @@ class InterfaceHandler(InterfaceBase):
                         else:
                             dset = self._bucket(1, pipelines=self._label, steps=input_path, **filter_dict)
                     if len(dset) > 0:
-                        if num_inputset == 0:
+                        if num_input_set == 0:
                             if self._multi_session is True:
-                                self._input_ref = {i:(finfo.Subject, finfo.Session) for i, finfo in dset}
+                                self._input_ref = {i: (finfo.Subject, finfo.Session) for i, finfo in dset}
                             else:
-                                self._input_ref = {i:(finfo.Subject, None) for i, finfo in dset}
-                        self._input_set[label] = [finfo.Abspath for i, finfo in dset]
+                                self._input_ref = {i: (finfo.Subject, None) for i, finfo in dset}
+                        if relpath:
+                            self._input_set[label] = [os.path.relpath(finfo.Abspath) for i, finfo in dset]
+                        else:
+                            self._input_set[label] = [finfo.Abspath for i, finfo in dset]
                 else:
                     self._input_set[label] = list()
                     if isinstance(idx, int):
@@ -214,15 +230,21 @@ class InterfaceHandler(InterfaceBase):
                                                             **filter_dict)
                                         if len(dset) > 0:
                                             self._input_ref[len(self._input_set[label])] = (
-                                            dset[idx].Subject, dset[idx].Session)
-                                            self._input_set[label].append(dset[idx].Abspath)
+                                                dset[idx].Subject, dset[idx].Session)
+                                            if relpath:
+                                                self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
+                                            else:
+                                                self._input_set[label].append(dset[idx].Abspath)
                                 else:
                                     dset = self._bucket(0, datatypes=input_path,
                                                         subjects=sub, **filter_dict)
                                     if len(dset) > 0:
                                         self._input_ref[len(self._input_set[label])] = (
                                             dset[idx].Subject, None)
-                                        self._input_set[label].append(dset[idx].Abspath)
+                                        if relpath:
+                                            self._input_set[label].append(dset[idx].Abspath)
+                                        else:
+                                            self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
                         else:
                             if mask is True:
                                 for sub in self._bucket.params[3].subjects:
@@ -234,14 +256,20 @@ class InterfaceHandler(InterfaceBase):
                                             if len(dset) > 0:
                                                 self._input_ref[len(self._input_set[label])] = (
                                                     dset[idx].Subject, dset[idx].Session)
-                                                self._input_set[label].append(dset[idx].Abspath)
+                                                if relpath:
+                                                    self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
+                                                else:
+                                                    self._input_set[label].append(dset[idx].Abspath)
                                     else:
                                         dset = self._bucket(3, datatypes=input_path,
                                                             subjects=sub, **filter_dict)
                                         if len(dset) > 0:
                                             self._input_ref[len(self._input_set[label])] = (
                                                 dset[idx].Subject, None)
-                                            self._input_set[label].append(dset[idx].Abspath)
+                                            if relpath:
+                                                self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
+                                            else:
+                                                self._input_set[label].append(dset[idx].Abspath)
                             else:
                                 for sub in self._bucket.params[1].subjects:
                                     if self._multi_session:
@@ -253,7 +281,10 @@ class InterfaceHandler(InterfaceBase):
                                             if len(dset) > 0:
                                                 self._input_ref[len(self._input_set[label])] = (
                                                     dset[idx].Subject, dset[idx].Session)
-                                                self._input_set[label].append(dset[idx].Abspath)
+                                                if relpath:
+                                                    self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
+                                                else:
+                                                    self._input_set[label].append(dset[idx].Abspath)
                                     else:
                                         dset = self._bucket(1, pipelines=self._label,
                                                             steps=input_path,
@@ -262,7 +293,10 @@ class InterfaceHandler(InterfaceBase):
                                         if len(dset) > 0:
                                             self._input_ref[len(self._input_set[label])] = (
                                                 dset[idx].Subject, None)
-                                            self._input_set[label].append(dset[idx].Abspath)
+                                            if relpath:
+                                                self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
+                                            else:
+                                                self._input_set[label].append(dset[idx].Abspath)
                     else:
                         self.logging('warn', 'inappropriate index for input data',
                                      method=method_name)
@@ -277,13 +311,16 @@ class InterfaceHandler(InterfaceBase):
                     else:
                         dset = self._bucket(1, pipelines=self._label, steps=input_path,
                                             **filter_dict)
-                if num_inputset == 0:
+                if num_input_set == 0:
                     self._input_ref = dict()
                 if self._multi_session:
-                    self._input_ref[label] = [(finfo.Subject, finfo.Session) for i, finfo in dset ]
+                    self._input_ref[label] = [(finfo.Subject, finfo.Session) for i, finfo in dset]
                 else:
                     self._input_ref[label] = [(finfo.Subject, None) for i, finfo in dset]
-                list_of_inputs = [finfo.Abspath for i, finfo in dset]
+                if relpath:
+                    list_of_inputs = [os.path.relpath(finfo.Abspath) for i, finfo in dset]
+                else:
+                    list_of_inputs = [finfo.Abspath for i, finfo in dset]
                 spacer = ' '
                 if join_modifier is not None:
                     if isinstance(join_modifier, dict):
@@ -308,7 +345,7 @@ class InterfaceHandler(InterfaceBase):
                 self.logging('warn', exc_msg, method=method_name)
             self._report_status(run_order)
 
-    def _set_static_input(self, run_order, label, input_path, filter_dict, idx, mask):
+    def _set_static_input(self, run_order, label, input_path, filter_dict, idx, mask, relpath):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
@@ -330,7 +367,7 @@ class InterfaceHandler(InterfaceBase):
                 exc_msg = 'insufficient filter_dict.'
                 if isinstance(filter_dict, dict):
                     for key in filter_dict.keys():
-                        if key not in self._bucket._fname_keys:
+                        if key not in self._bucket.fname_keys:
                             self.logging('warn', exc_msg, method=method_name)
                 else:
                     self.logging('warn', exc_msg, method=method_name)
@@ -371,10 +408,13 @@ class InterfaceHandler(InterfaceBase):
                                 dset = self._bucket(1, pipelines=self._label, steps=input_path,
                                                     subjects=subj, sessions=sess,
                                                     **filter_dict)
-                    self._input_set[label].append(dset[idx].Abspath)
+                    if relpath:
+                        self._input_set[label].append(os.path.realpath(dset[idx].Abspath))
+                    else:
+                        self._input_set[label].append(dset[idx].Abspath)
             self._report_status(run_order)
 
-    def set_errterm(self, error_term):
+    def set_errterm(self, error_term: str or list):
         """Set terms to indicate error condition
         """
         self._errterm = error_term
@@ -401,13 +441,13 @@ class InterfaceHandler(InterfaceBase):
                             fname = change_fname(fname, f, rep)
                     elif isinstance(modifier, str):
                         if self._input_method is not 1:
-                            exc_msg = 'single output name assignment only available for input method=1'
-                            self.logging('warn', exc_msg, method=method_name)
+                            self.logging('warn',
+                                         'single output name assignment only available for input method=1',
+                                         method=method_name)
                         else:
                             fname = modifier
                     else:
-                        exc_msg = 'wrong modifier.'
-                        self.logging('warn', exc_msg, method=method_name)
+                        self.logging('warn', 'wrong modifier.', method=method_name)
                     fn, fext = split_ext(fname)
                     if fext is None:
                         fext = 'dir'
@@ -420,11 +460,10 @@ class InterfaceHandler(InterfaceBase):
                     if ext is not None:
                         if isinstance(ext, str):
                             fname = change_ext(fname, ext)
-                        elif ext == False:
+                        elif not ext:
                             fname = remove_ext(fname)
                         else:
-                            exc_msg = '[{}]-wrong extension.'.format(self.step_code)
-                            self.logging('warn', exc_msg, method=method_name)
+                            self.logging('warn', '[{}]-wrong extension.'.format(self.step_code), method=method_name)
                 else:
                     if self._input_method == 1:
                         fname = '{}_output'.format(self.step_code)
@@ -447,8 +486,9 @@ class InterfaceHandler(InterfaceBase):
                             elif not ext:
                                 fname = remove_ext(fname)
                             else:
-                                exc_msg = '[{}]-wrong extension.'.format(self.step_code)
-                                self.logging('warn', exc_msg, method=method_name)
+                                self.logging('warn',
+                                             '[{}]-wrong extension.'.format(self.step_code),
+                                             method=method_name)
                 return fname
 
             # all possible input types, method 0 and method 1
@@ -483,8 +523,8 @@ class InterfaceHandler(InterfaceBase):
             self._wait_my_turn(run_order, '{}'.format(label), method='set_output_checker')
             method_name = 'check_output'
 
-            for l, v in self._output_set.items():
-                if l == label:
+            for lb, v in self._output_set.items():
+                if lb == label:
                     if self._input_method == 0:
                         for p, fn in v:
                             fn_woext, old_ext = split_ext(fn)
@@ -497,7 +537,7 @@ class InterfaceHandler(InterfaceBase):
                             else:
                                 fn = '{}.{}'.format(fn_woext, old_ext)
                             self._output_filter.append((p, fn))
-                    elif self._input_method == 1: # input_method=1 has only one master output
+                    elif self._input_method == 1:  # input_method=1 has only one master output
                         if isinstance(v[0], tuple) and len(v[0]) == 2:
                             p, fn = v[0]
                             fn_woext, old_ext = split_ext(fn)
@@ -524,7 +564,7 @@ class InterfaceHandler(InterfaceBase):
                              method='set_output_checker')
             self._report_status(run_order)
 
-    def _set_temporary(self, run_order, label, path_only):
+    def _set_temporary(self, run_order, label, path_only, relpath):
         """hidden layer to run on daemon"""
         if self._step_processed is True:
             pass
@@ -545,7 +585,10 @@ class InterfaceHandler(InterfaceBase):
                 self._inspect_label(label, method_name)
 
             step_path = self.msi.path.basename(self.path)
-            temp_path = self._procobj.temp_path
+            if relpath:
+                temp_path = os.path.relpath(self._procobj.temp_path)
+            else:
+                temp_path = self._procobj.temp_path
             if path_only is True:
                 self._temporary_set[label] = self.msi.path.join(temp_path, step_path)
             else:
@@ -616,11 +659,11 @@ class InterfaceHandler(InterfaceBase):
     @staticmethod
     def _parse_placeholder(manager, command):
         prefix, suffix = manager.decorator
-        raw_prefix = ''.join([r'\{}'.format(chr) for chr in prefix])
-        raw_surfix = ''.join([r'\{}'.format(chr) for chr in suffix])
+        raw_prefix = ''.join([r'\{}'.format(c) for c in prefix])
+        raw_suffix = ''.join([r'\{}'.format(c) for c in suffix])
 
         # The text
-        p = re.compile(r"{0}[^{0}{1}]+{1}".format(raw_prefix, raw_surfix))
+        p = re.compile(r"{0}[^{0}{1}]+{1}".format(raw_prefix, raw_suffix))
         return set([obj[len(prefix):-len(suffix)] for obj in p.findall(command)])
 
     @staticmethod
@@ -782,11 +825,8 @@ class InterfaceBuilder(InterfaceHandler):
         set_temporary:
         set_var:
         set_cmd:
-
-    Attributes:
-        path:
     """
-    def __init__(self, processor, n_threads=None):
+    def __init__(self, processor, n_threads=None, relpath=False):
         super(InterfaceBuilder, self).__init__()
         self._parse_info_from_processor(processor)
         self._init_attr_for_inspection()
@@ -795,6 +835,7 @@ class InterfaceBuilder(InterfaceHandler):
             self._n_threads = processor.scheduler_param['n_threads']
         else:
             self._n_threads = n_threads
+        self._relpath = relpath
         # Initiate scheduler
         self._schd = Scheduler(n_threads=self._n_threads)
 
@@ -817,10 +858,6 @@ class InterfaceBuilder(InterfaceHandler):
             mode (str):     'processing'- create step directory in working path
                             'reporting' - create step directory in result path
                             'masking'   - create step directory in mask path
-
-        Raises:
-            Exception:      if wrong mode are inputted
-
         """
         self.reset()
         run_order = self._update_run_order()
@@ -834,25 +871,27 @@ class InterfaceBuilder(InterfaceHandler):
             self._path = self._procobj.init_step(title=title, suffix=suffix,
                                                  idx=idx, subcode=subcode,
                                                  mode=mode)
-            if self.step_code not in self._procobj._waiting_list:
-                if self.step_code not in self._procobj._processed_list:
-                    self._procobj._waiting_list.append(self.step_code)
+            if self._relpath:
+                self._path = os.path.relpath(self._path)
+            if self.step_code not in self._procobj.waiting_list:
+                if self.step_code not in self._procobj.processed_list:
+                    self._procobj.waiting_list.append(self.step_code)
                     self.logging('debug', 'added waiting list.',
                                  method='init_step-[{}]'.format(self.step_code))
                 else:
                     # check if the current step had been processed properly
                     self._procobj.update()
-                    base = {1: self._procobj._executed,
-                            2: self._procobj._reported,
-                            3: self._procobj._masked, }
+                    base = {1: self._procobj.executed,
+                            2: self._procobj.reported,
+                            3: self._procobj.masked, }
                     if self.step_code in base[mode_dict[mode]].keys():
                         self.logging('debug',
                                      'has been processed, \n'
                                      'so this step will not be executed.',
                                      method='init_step-[{}]'.format(self.step_code))
                     else:
-                        self._procobj._processed_list.remove(self.step_code)
-                        self._procobj._waiting_list.append(self.step_code)
+                        self._procobj.processed_list.remove(self.step_code)
+                        self._procobj.waiting_list.append(self.step_code)
                         self.logging('debug',
                                      ' has been processed but its empty now. \n'
                                      'so it is added waiting list again.',
@@ -871,7 +910,8 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_input(self, label, input_path, filter_dict=None, method=0, mask=False, idx=None, join_modifier=None):
+    def set_input(self, label, input_path, filter_dict=None, method=0, mask=False,
+                  idx=None, join_modifier=None):
         """this method sets the input with filename filter, data can be collected from dataset path or working path,
         as well as masking path if mask is set to True.
         At least one input path need to be set for building interface.
@@ -905,14 +945,14 @@ class InterfaceBuilder(InterfaceHandler):
         # add current step code to the step list
         daemon = self.get_daemon(self._set_input, run_order, label, input_path,
                                  filter_dict=filter_dict, method=method, mask=mask, idx=idx,
-                                 join_modifier=join_modifier)
+                                 join_modifier=join_modifier, relpath=self._relpath)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
     def set_static_input(self, label, input_path, filter_dict=None, idx=0, mask=False):
         run_order = self._update_run_order()
         daemon = self.get_daemon(self._set_static_input, run_order, label, input_path,
-                                 filter_dict=filter_dict, idx=idx, mask=mask)
+                                 filter_dict=filter_dict, idx=idx, mask=mask, relpath=self._relpath)
         self._daemons[run_order] = daemon
 
     def set_output(self, label, prefix=None, suffix=None, modifier=None, ext=None):
@@ -964,10 +1004,11 @@ class InterfaceBuilder(InterfaceHandler):
 
         Args:
             label(str):     temporary output place-holder for command template.
+            path_only(bool)
         """
         run_order = self._update_run_order()
         # add current step code to the step list
-        daemon = self.get_daemon(self._set_temporary, run_order, label, path_only)
+        daemon = self.get_daemon(self._set_temporary, run_order, label, path_only, relpath=self._relpath)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
@@ -1009,7 +1050,7 @@ class InterfaceBuilder(InterfaceHandler):
         # submit job to scheduler
         run_order = self._update_run_order()
         # link this object to the parents class
-        self._procobj._running_obj[self.step_code] = self
+        self._procobj.running_obj[self.step_code] = self
         # add current step code to the step list
         daemon = self.get_daemon(self._run, run_order, mode=mode)
         # update daemon to monitor
@@ -1020,7 +1061,8 @@ class InterfaceBuilder(InterfaceHandler):
         if self._step_processed is True:
             pass
         else:
-            self._wait_my_turn(run_order, 'running interface command..', method='run') # wait until previous command is finished.
+            # wait until previous command is finished.
+            self._wait_my_turn(run_order, 'running interface command..', method='run')
             # command process start from here
             self._inspect_output()
             if mode == 'python':
@@ -1030,13 +1072,17 @@ class InterfaceBuilder(InterfaceHandler):
             for mng in self._mngs:
                 try:
                     mng.schedule(self._schd, label=self.step_code)
-                except:
-                    self.logging('warn', 'exception is occurred during job scheduling.',
+                except TypeError:
+                    self.logging('warn', 'TypeError occurred during job scheduling.',
                                  method='run-[{}]'.format(self.step_code))
+                except:
+                    self.logging('warn', 'UnexpectedError occurred during job scheduling.',
+                                 method='run-[{}]'.format(self.step_code))
+                    raise UnexpectedError
             self.logging('debug', 'processing scheduled.'.format(self.step_code),
                          method='run-[{}]'.format(self.step_code))
             self._schd.submit(mode='background', use_label=True)
-            self._schd.join() # because foreground option cannot check the status
+            self._schd.join()  # because foreground option cannot check the status
             # command process end here
 
             inspect_result = self._inspect_run()
@@ -1054,7 +1100,6 @@ class InterfaceBuilder(InterfaceHandler):
                     if workers[j] is None:
                         self.logging('stdout', 'None\n')
                     else:
-                        # self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j]).encode('utf-8')))
                         self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j])))
             self.logging('debug', 'collect STDERR from workers.', method='run-[{}]'.format(self.step_code))
 
@@ -1064,41 +1109,31 @@ class InterfaceBuilder(InterfaceHandler):
                         self.logging('stderr', 'None\n')
                     else:
                         self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
-                        # self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j]).encode('utf-8')))
 
             # step code update
             self.clear()
-            # last_step_code = self._procobj._waiting_list[0]
-            # if last_step_code != self.step_code:
-            #     self.logging('warn', '** FATAL ERROR ** step code mismatch.',
-            #                  method='run-[{}]'.format(self.step_code))
-            # else:
-            #     # del self._procobj._running_obj[self.step_code]
-            #     self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
-            # self.logging('debug', 'processed.',
-            #              method='run-[{}]'.format(self.step_code))
         # update executed folder
         self._procobj.update()
 
     @property
     def waiting_steps(self):
-        return self._procobj._waiting_list
+        return self._procobj.waiting_list
 
     @property
     def processed_steps(self):
-        return self._procobj._processed_list
+        return self._procobj.processed_list
 
     def remove_from_waitinglist(self):
-       self.clear()
+        self.clear()
 
     def clear(self):
         if self.step_code is not None:
-            last_step_code = self._procobj._waiting_list[0]
+            last_step_code = self._procobj.waiting_list[0]
             if last_step_code != self.step_code:
                 self.logging('warn', '** FATAL ERROR ** step code mismatch.',
                              method='run-[{}]'.format(self.step_code))
             else:
-                self._procobj._processed_list.append(self._procobj._waiting_list.pop(0))
+                self._procobj.processed_list.append(self._procobj.waiting_list.pop(0))
             self.logging('debug', 'processed.',
                          method='run-[{}]'.format(self.step_code))
 
@@ -1113,7 +1148,7 @@ class InterfaceBuilder(InterfaceHandler):
                 elif isinstance(inputs, list):
                     input_ready = True
                 return inputs
-            except:
+            except KeyError:  # label not in input_set, wait until it updated.
                 time.sleep(self._refresh_rate)
         return
 
@@ -1131,7 +1166,7 @@ class InterfaceBuilder(InterfaceHandler):
                     if time.time() - start < self._timeout:
                         pass
                     else:
-                        raise Exception('[{}]-no func found'.format(self.step_code))
+                        raise NoFunction('[{}]-no func found'.format(self.step_code))
                 else:
                     loop = False
             for j, func in sorted(self._func_set.items()):
@@ -1151,7 +1186,7 @@ class InterfaceBuilder(InterfaceHandler):
                     if time.time() - start < self._timeout:
                         pass
                     else:
-                        raise Exception('[{}]-no command found'.format(self.step_code))
+                        raise NoCommand('[{}]-no command found'.format(self.step_code))
                 else:
                     loop = False
 
@@ -1170,7 +1205,7 @@ class InterfaceBuilder(InterfaceHandler):
             try:
                 mng.schedule(self._schd, label=self.step_code)
             except:
-                raise Exception('[{}]-exception is occurred during job scheduling.'.format(self.step_code))
+                raise UnexpectedError('[{}]-unexpected error occurred during job scheduling.'.format(self.step_code))
 
         print('[{}]-processing scheduled.'.format(self.step_code))
         self._schd.submit(use_label=True)
@@ -1180,13 +1215,10 @@ class InterfaceBuilder(InterfaceHandler):
                 if workers[j] is None:
                     print('stdout', 'None\n')
                 else:
-                    # print('stdout', '\n  {}'.format('\n  '.join(workers[j]).encode('utf-8')))
                     print('stdout', '\n  {}'.format('\n  '.join(workers[j])))
         for i, workers in self._schd.stderr.items():
             for j in sorted(workers.keys()):
                 if workers[j] is None:
                     print('stderr', 'None\n')
                 else:
-                    # print('stderr', '\n  {}'.format(u'\n  '.join(workers[j]).encode('utf-8')))
                     print('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
-

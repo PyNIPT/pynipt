@@ -1,6 +1,5 @@
 import importlib
 import importlib.util as imp_util
-import os
 import re
 from inspect import getsource
 from shleeh.utils import get_installed_pkg
@@ -39,10 +38,10 @@ class PluginParser:
 
         # patterns
         p_space = re.compile(r'^\s*$')
-        p_class = re.compile(r'^class\s(?P<name>[0-9a-zA-Z_]+)\((?P<type>Processor|PipelineBuilder)\)\:')
+        p_class = re.compile(r'^class\s(?P<name>[0-9a-zA-Z_]+)\((?P<type>Processor|PipelineBuilder)\):')
         p_method = re.compile(r'^def\s[0-9a-zA-Z_]+\(self.*')
-        p_closed = re.compile(r'.*\)\:')
-        p_complete_method = re.compile(r'^def\s(?P<name>[0-9a-zA-Z_]+)\((?P<argv>self.*)\)\:$')
+        p_closed = re.compile(r'.*\):')
+        p_complete_method = re.compile(r'^def\s(?P<name>[0-9a-zA-Z_]+)\((?P<argv>self.*)\):$')
 
         # parsing meta data from plugin
         class_parser = self._meta
@@ -82,33 +81,33 @@ class PluginParser:
                         if method:
                             method_name = method.group('name')
 
-                            p_args = re.compile(r'(?P<key>[a-zA-Z0-9_]+)\s*\=\s*[\'\"]?(?P<value>[^\'\"]+)[\'\"]?')
+                            p_args = re.compile(r'(?P<key>[a-zA-Z0-9_]+)\s*=\s*[\'\"]?(?P<value>[^\'\"]+)[\'\"]?')
                             if method_name == '__init__':
-                                for a in method.group('argv').split(','):
-                                    a = a.strip()
-                                    if a != 'self':
-                                        arg_obj = p_args.match(a)
+                                for arg in method.group('argv').split(','):
+                                    arg = arg.strip()
+                                    if arg != 'self':
+                                        arg_obj = p_args.match(arg)
                                         if arg_obj:
                                             class_parser[class_name]['kwargs'][arg_obj.group('key')] \
                                                 = self.convert_value(arg_obj.group('value'))
                                         else:
-                                            if re.match(r'^[\*]+.*', a):
+                                            if re.match(r'^[*]+.*', arg):
                                                 pass
                                             else:
-                                                class_parser[class_name]['args'].append(a)
+                                                class_parser[class_name]['args'].append(arg)
                             else:
                                 method_parser = class_parser[class_name]['methods']
                                 method_parser[method_name] = dict(idx=idx, args=[], kwargs=dict())
-                                for a in method.group('argv').split(','):
-                                    a = a.strip()
-                                    if a != 'self':
-                                        arg_obj = p_args.match(a)
+                                for arg in method.group('argv').split(','):
+                                    arg = arg.strip()
+                                    if arg != 'self':
+                                        arg_obj = p_args.match(arg)
                                         if arg_obj:
                                             key = arg_obj.group('key')
                                             value = self.convert_value(arg_obj.group('value'))
                                             method_parser[method_name]['kwargs'][key] = value
                                         else:
-                                            method_parser[method_name]['args'].append(a)
+                                            method_parser[method_name]['args'].append(arg)
         if class_name is None:
             raise InvalidPlugin
 
@@ -132,7 +131,7 @@ class PluginParser:
 
     @staticmethod
     def strip_code(text: str) -> str:
-        p_comment = re.compile(r'(?P<code>.*)(?P<comment>\s+\#.*)')
+        p_comment = re.compile(r'(?P<code>.*)(?P<comment>\s+#.*)')
         match_obj = p_comment.match(text)
         if match_obj:
             if re.match(r'^#.*', text.strip()):
@@ -185,6 +184,7 @@ class PluginLoader:
         return self._available_pkgs()
 
     def _parse_plugins(self):
+        import os
         p_plugin = r'^pynipt[-_]plugin[-_](?P<name>.*)$'
         list_plugin = get_installed_pkg(regex=p_plugin)
 
@@ -223,6 +223,7 @@ class PluginLoader:
                     pipeline_items.append(p)
 
     def from_file(self, name: str, file_path: str):
+        import os
         file_path = os.path.expanduser(file_path)
         if not os.path.isfile(file_path):
             raise FileNotFoundError

@@ -30,28 +30,17 @@ setup(name='PyNIPT',
           'pandas>=1.0.0',
           'tqdm>=4.40.0',
           'psutil>=5.5.0',
-          'miresi>=0.0.1',
           'paralexe>=0.0.3',
           'shleeh>=0.0.3'
                        ],
       # scripts=['',
       #         ],
       classifiers=[
-            # How mature is this project? Common values are
-            #  3 - Alpha
-            #  4 - Beta
-            #  5 - Production/Stable
-            'Development Status :: 3 - Alpha',
-
-            # Indicate who your project is intended for
+            'Development Status :: 4 - Beta',
             'Framework :: Jupyter',
             'Intended Audience :: Science/Research',
             'Topic :: Scientific/Engineering :: Information Analysis',
             'Natural Language :: English',
-
-            # Specify the Python version you support here. In particular, ensure
-            # that you indicate whether you support Python 2, Python 3 or both
-            'Programming Language :: Python :: 2.7',
             'Programming Language :: Python :: 3.7',
       ],
       keywords='Python NeuroImaging Pipeline Tools'
