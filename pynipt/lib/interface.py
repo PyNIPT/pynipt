@@ -1,16 +1,17 @@
 import time
+from typing import Any, Optional, Union
+from .processor import Processor
 from paralexe import Manager, FuncManager, Scheduler
 from ..config import config
 from ..utils import *
 from ..errors import *
 
 
-class InterfaceBase(object):
+class InterfaceBase:
     """ Base class of InterfaceBuilder.
 
     Attributes and some function for getting inheritance from the other class
     is defining here in yhr base class
-
     """
     def __init__(self):
         # private
@@ -814,20 +815,35 @@ class InterfaceHandler(InterfaceBase):
 
 
 class InterfaceBuilder(InterfaceHandler):
-    """ for building a interface plugin
-    # TODO: Docstring update is needed, also need to find better way to operate pipeline on thread,
-    # TODO: UserInterface need to be more intuitive. (e.g. need to have a method to test interface)
+    """ Interface for wrapping shell commands or python function.
+    Each interface is executed as single step node for the pipeline.
+    For more detail on Interface plugin development, please see our tutorial.
 
     Methods:
-        init_step:
-        is_initiated:
-        set_input:
-        set_output:
-        set_temporary:
-        set_var:
-        set_cmd:
+        init_step: initiate step, required the step title and code to prevent any conflict with other step node.
+        is_initiated: check if the interface wrapper is initiated, useful when you working at the interpreter.
+        set_input: method to set input location
+        set_output: method to set output direction
+        set_temporary: method to set temporary file handler for running sub-step
+        set_var: method to set variable
+        set_cmd: method to set shell command (cannot use with set_func)
+        set_func: method to set python function (cannot use with set_cmd)
+        set_errterm: method to set error message string to indicate occurrence of the error event.
+        set_output_checker: method to specify which filename to check after step execution.
+                error occurred if the output file are not found. In case the output filename is different to the
+                input filename, the filename modifier must be provided.
+        run : method to schedule execution, with mode='python', use the python function instead of using shell command
+
     """
-    def __init__(self, processor, n_threads=None, relpath=False):
+    def __init__(self, processor: Processor, n_threads: int = None, relpath: bool = False):
+        """
+        Args:
+            processor: Processor instance
+            n_threads: number of threads
+            relpath: specify whether you are using relative path instead of absolute path on command
+        Notes:
+            relpath option added in response to the error related to the absolute path on AFNI's 3dttest++
+        """
         super(InterfaceBuilder, self).__init__()
         self.reset(processor)
         # self._parse_info_from_processor(processor)
@@ -842,7 +858,8 @@ class InterfaceBuilder(InterfaceHandler):
         # Initiate scheduler
         self._schd = Scheduler(n_threads=self._n_threads)
 
-    def reset(self, processor=None):
+    def reset(self, processor: Optional[Processor] = None):
+        """ reset all background process and clear queue """
         if processor is None:
             processor = self._procobj
         self._parse_info_from_processor(processor)
@@ -858,17 +875,21 @@ class InterfaceBuilder(InterfaceHandler):
         """ return the scheduler object """
         return self._schd
 
-    def init_step(self, title, suffix=None, idx=None, subcode=None, mode='processing'):
-        """initiate step directory, this includes generating step code and creating the directory
-
+    def init_step(self, title: str, suffix: Optional[str] = None,
+                  idx: Optional[int] = None, subcode: Optional[str] = None,
+                  mode='processing'):
+        """initiate step directory with unique step code to prevent any conflict on folder naming.
+        Notes:
+            in case of using same title, please use suffix to distinguish with other, which useful when
+            repeating same command with different parameter set.
         Args:
-            title(str):     the title for the step directory
-            suffix(str):    suffix for the title
-            idx:            index of step
-            subcode:        sub-step code to identify the sub-step process
-            mode (str):     'processing'- create step directory in working path
-                            'reporting' - create step directory in result path
-                            'masking'   - create step directory in mask path
+            title: the title for the step directory
+            suffix: suffix for the title
+            idx: index of step
+            subcode: sub-step code to identify the sub-step process
+            mode: 'processing'- create step directory in working path
+                  'reporting' - create step directory in result path
+                  'masking'   - create step directory in mask path
         """
         self.reset()
         run_order = self._update_run_order()
@@ -922,13 +943,14 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_input(self, label, input_path, filter_dict=None, method=0, mask=False,
-                  idx=None, join_modifier=None):
+    def set_input(self, label: str, input_path: str, filter_dict: Optional[dict] = None,
+                  group_input: bool = False, mask: bool = False,
+                  idx: Optional[int] = None, join_modifier: Optional[dict] = None):
         """this method sets the input with filename filter, data can be collected from dataset path or working path,
         as well as masking path if mask is set to True.
         At least one input path need to be set for building interface.
 
-        If there is multiple input, the total numbe of jobs will be established from first set of input
+        If there is multiple input, the total number of jobs will be established from first set of input
         and all other inputs must have the same number with first input. (inspection function will check it.)
 
         The method keyword argument is provided the option to apply group statistic,
@@ -942,8 +964,9 @@ class InterfaceBuilder(InterfaceHandler):
             filter_dict(dict):      filter set for parsing input data.
                                     available keys={'contains', 'ignore', 'ext', 'regex', # for filename
                                                     'subjects', 'sessions}                # for select specific group
-            method (int):           0 - run command for the single master file to generate single master output
-                                    1 - set multiple files as input to generate single master output
+            group_input (int):      False - take one file for a input to run
+                                    True - take multiple files as one input to run,
+                                           only can be used for  'reporting' mode
             mask(bool):             True if input is mask file
             idx(int):               index of the filtered dataset in order to pick one file as input
                                     across subjects or sessions.
@@ -956,18 +979,31 @@ class InterfaceBuilder(InterfaceHandler):
         run_order = self._update_run_order()
         # add current step code to the step list
         daemon = self.get_daemon(self._set_input, run_order, label, input_path,
-                                 filter_dict=filter_dict, method=method, mask=mask, idx=idx,
+                                 filter_dict=filter_dict, method=group_input, mask=mask, idx=idx,
                                  join_modifier=join_modifier, relpath=self._relpath)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
     def set_static_input(self, label, input_path, filter_dict=None, idx=0, mask=False):
+        """ method to set static input for each subject. useful when only one specific file need to be
+        Args:
+            label(str):             label for space holder on command template
+            input_path(str):        absolute path, step directory, datatype or step code
+            filter_dict(dict):      filter set for parsing input data.
+                                    available keys={'contains', 'ignore', 'ext', 'regex', # for filename
+                                                    'subjects', 'sessions}                # for select specific group
+            idx(int):               index of the filtered dataset in order to pick one file as input
+                                    across subjects or sessions.
+            mask(bool):             True if input is mask file
+        """
         run_order = self._update_run_order()
         daemon = self.get_daemon(self._set_static_input, run_order, label, input_path,
                                  filter_dict=filter_dict, idx=idx, mask=mask, relpath=self._relpath)
         self._daemons[run_order] = daemon
 
-    def set_output(self, label, prefix=None, suffix=None, modifier=None, ext=None):
+    def set_output(self, label: str, prefix: Optional[str] = None,
+                   suffix: Optional[str] = None, modifier: Optional[Union[dict, str]] = None,
+                   ext: Optional[Union[str, bool]] = None):
         """This method will set output, if no input prior to this method, it will raise error.
         For the case of input methods 1 and 2, the output filename will be set as [subject]
         and [subject_session], respectively, and extension must be specified.
@@ -991,12 +1027,15 @@ class InterfaceBuilder(InterfaceHandler):
 
     @property
     def check_output(self):
-        # TODO: need to delete after fix all default plugin
-        # (this is for backward compatibility)
+        # this method is existing for backward compatibility.
+        from shleeh.utils import deprecated_warning
+        deprecated_warning('check_output', 'set_output_checker', future=True)
         return self.set_output_checker
 
-    def set_output_checker(self, label='output', prefix=None, suffix=None, ext=None):
-        """This method generates output filter to prevent execution if the output file is already exists.
+    def set_output_checker(self, label: str = 'output', prefix: Optional[str] = None,
+                           suffix: Optional[str] = None, ext: Optional[str] = None):
+        """method to generate output filter to check whether the output file has been generated,
+        if the output file exists already, skip current step.
 
         Args:
             label(str):     main output placeholder on command template
@@ -1011,11 +1050,10 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_temporary(self, label, path_only=False):
-        """method to set temporary output step. the structure of temporary folder
-
+    def set_temporary(self, label: str, path_only: bool = False):
+        """ method to set temporary output step.
         Args:
-            label(str):     temporary output place-holder for command template.
+            label:     temporary output place-holder for command template.
             path_only(bool)
         """
         run_order = self._update_run_order()
@@ -1024,13 +1062,14 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_var(self, label, value, quote=False):
-        """ If no input prior to this method, raise error
-
+    def set_var(self, label: str, value: Any, quote: bool = False):
+        """ method to set argument variables for function or shell command execution.
+        Notes:
+            If no input set prior to this method, Error will be raised.
         Args:
-            label(str):                 place-holder of variable for command template.
-            value(str, int, or list):   value to set as variable on command template
-            quote(bool):                True if the value need to be encapsulated by the quote on command line
+            label: name of place-holder of variable for command of function template.
+            value: value to set as variable on command template
+            quote: True if the value need to be encapsulated by the quote on the shell command
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1039,11 +1078,12 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_cmd(self, command):
-        """If no input prior to this method, raise error
-
+    def set_cmd(self, command: str):
+        """ method to set shell command, cannot use with 'set_func' method
+        Notes:
+            If no input set prior to this method, Error will be raised.
         Args:
-            command(str):   command template, use decorator '*[label]' to place arguments.
+            command(str): command template, use decorator '*[label]' to place arguments.
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1052,13 +1092,23 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_func(self, func):
+        """ method to set python function, cannot use with 'set_func' method
+        Notes:
+            if no input set prior to this method, Error will be raised.
+        Args:
+            func: function template, the keyword argument on input
+        """
         run_order = self._update_run_order()
         # add current step code to the step list
         daemon = self.get_daemon(self._set_func, run_order, func)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def run(self, mode=None):
+    def run(self, mode : Optional[str] = None):
+        """ schedule the execution
+        Args:
+            mode: set 'python' if you use python function instead of shell command.
+        """
         # submit job to scheduler
         run_order = self._update_run_order()
         # link this object to the parents class
@@ -1104,7 +1154,7 @@ class InterfaceBuilder(InterfaceHandler):
 
             if inspect_result:
                 self.logging('warn', 'missing output file(s).', method='run-[{}]'.format(self.step_code))
-            # parse stdout and stderr
+            # _parse stdout and stderr
             self.logging('debug', 'collect STDOUT from workers.', method='run-[{}]'.format(self.step_code))
 
             for i, workers in self._schd.stdout.items():
@@ -1150,6 +1200,7 @@ class InterfaceBuilder(InterfaceHandler):
                          method='run-[{}]'.format(self.step_code))
 
     def get_inputs(self, label):
+        """ the method to check inputs """
         input_ready = False
         while input_ready is False:
             try:
@@ -1168,6 +1219,7 @@ class InterfaceBuilder(InterfaceHandler):
         return self._input_ref
 
     def run_manually(self, args, mode=None):
+        """ execution method for debugging purpose. """
         loop = True
         start = time.time()
         managers = []
