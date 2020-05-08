@@ -1,5 +1,5 @@
 import time
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Callable
 from .processor import Processor
 from paralexe import Manager, FuncManager, Scheduler
 from ..config import config
@@ -63,7 +63,7 @@ class InterfaceBase:
         return self._msi
 
     def logging(self, level: str, message: str, method: str = None):
-        """The helper method to log message. If the logger is not initiated,
+        """ The helper method to log message. If the logger is not initiated,
         only log the message if logger is initiated.
 
         Args:
@@ -78,7 +78,7 @@ class InterfaceBase:
         if method is not None:
             message = '{}:{}-{}'.format(classname, method, message)
         else:
-            message = '{}-{}'.format(classname, message)
+            message = '{}\n  {}'.format(classname, message)
         self._procobj.logging(level, message)
         if level == 'warn':
             raise ErrorInThread(message)
@@ -133,8 +133,7 @@ class InterfaceHandler(InterfaceBase):
         self._schd = None
 
     def _init_step(self, run_order, mode_idx):
-        """hidden method for init_step to run on the thread
-        """
+        """ hidden method for init_step to run on the thread """
         # check if the init step is not first command user was executed
         if run_order != 0:
             self.logging('warn', 'init_step must be perform first for building command interface.',
@@ -165,12 +164,12 @@ class InterfaceHandler(InterfaceBase):
 
     def _set_input(self, run_order, label, input_path, filter_dict,
                    method, idx, mask, join_modifier, relpath):
-        """hidden layer to run on daemon"""
+        """ hidden layer to run on daemon """
         if self._step_processed is True:
             pass
         else:
             self._wait_my_turn(run_order,
-                               '{} label assigned to input_path [{}]'.format(label, input_path),
+                               'input_path [{}] is assigned to the label [{}].'.format(label, input_path),
                                method='set_input')
 
             method_name = 'set_input'
@@ -178,7 +177,7 @@ class InterfaceHandler(InterfaceBase):
 
             if num_input_set > 0:
                 if self._input_method != method:
-                    exc_msg = 'input method is not match with prior set input(s).'
+                    exc_msg = 'invalid input method for the assigned input(s).'
                     self.logging('warn', exc_msg, method=method_name)
                 else:
                     if label in self._input_set.keys():
@@ -192,7 +191,7 @@ class InterfaceHandler(InterfaceBase):
             if filter_dict is None:
                 filter_dict = dict()
             else:
-                exc_msg = 'insufficient filter_dict.'
+                exc_msg = 'invalid filter_dict.'
                 if isinstance(filter_dict, dict):
                     for key in filter_dict.keys():
                         if key not in self._bucket.fname_keys:
@@ -244,9 +243,9 @@ class InterfaceHandler(InterfaceBase):
                                         self._input_ref[len(self._input_set[label])] = (
                                             dset[idx].Subject, None)
                                         if relpath:
-                                            self._input_set[label].append(dset[idx].Abspath)
-                                        else:
                                             self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
+                                        else:
+                                            self._input_set[label].append(dset[idx].Abspath)
                         else:
                             if mask is True:
                                 for sub in self._bucket.params[3].subjects:
@@ -300,7 +299,7 @@ class InterfaceHandler(InterfaceBase):
                                             else:
                                                 self._input_set[label].append(dset[idx].Abspath)
                     else:
-                        self.logging('warn', 'inappropriate index for input data',
+                        self.logging('warn', 'invalid index for input data',
                                      method=method_name)
 
             elif self._input_method == 1:
@@ -348,7 +347,7 @@ class InterfaceHandler(InterfaceBase):
             self._report_status(run_order)
 
     def _set_static_input(self, run_order, label, input_path, filter_dict, idx, mask, relpath):
-        """hidden layer to run on daemon"""
+        """ hidden layer to run on daemon """
         if self._step_processed is True:
             pass
         else:
@@ -411,13 +410,15 @@ class InterfaceHandler(InterfaceBase):
                                                     subjects=subj, sessions=sess,
                                                     **filter_dict)
                     if relpath:
-                        self._input_set[label].append(os.path.realpath(dset[idx].Abspath))
+                        self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
                     else:
                         self._input_set[label].append(dset[idx].Abspath)
             self._report_status(run_order)
 
     def set_errterm(self, error_term: str or list):
         """Set terms to indicate error condition
+        Args:
+            error_term:     keyword to indicate error on running subprocess, only required for shell command interface
         """
         self._errterm = error_term
 
@@ -431,7 +432,7 @@ class InterfaceHandler(InterfaceBase):
             method_name = 'set_output'
             input_name = self._main_input
             if self._main_input is None:
-                exc_msg = 'no prior input set, run "set_input" method first.'
+                exc_msg = 'no input set found, please run "set_input" method before set output.'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._inspect_label(label, method_name)
@@ -444,7 +445,7 @@ class InterfaceHandler(InterfaceBase):
                     elif isinstance(modifier, str):
                         if self._input_method is not 1:
                             self.logging('warn',
-                                         'single output name assignment only available for input method=1',
+                                         'single output name assignment is only available for input method=1',
                                          method=method_name)
                         else:
                             fname = modifier
@@ -489,7 +490,7 @@ class InterfaceHandler(InterfaceBase):
                                 fname = remove_ext(fname)
                             else:
                                 self.logging('warn',
-                                             '[{}]-wrong extension.'.format(self.step_code),
+                                             '[{}]-invalid extension.'.format(self.step_code),
                                              method=method_name)
                 return fname
 
@@ -512,7 +513,7 @@ class InterfaceHandler(InterfaceBase):
                 self._output_set[label].append((self._path, filename))
 
             else:
-                exc_msg = '[{}]-unexpected error, might be caused by incorrect input_method.'.format(self.step_code)
+                exc_msg = '[{}]-unexpected error, might be caused by invalid input_method.'.format(self.step_code)
                 self.logging('warn', exc_msg, method=method_name)
 
             self._report_status(run_order)
@@ -582,7 +583,7 @@ class InterfaceHandler(InterfaceBase):
             else:
                 if self._input_method != 0:
                     if path_only is False:
-                        exc_msg = '[{}]-cannot use temporary step for input_method=1.'.format(self.step_code)
+                        exc_msg = '[{}]-cannot use temporary step when group_input is True.'.format(self.step_code)
                         self.logging('warn', exc_msg, method=method_name)
                 self._inspect_label(label, method_name)
 
@@ -683,25 +684,25 @@ class InterfaceHandler(InterfaceBase):
             for i, (path, fname) in enumerate(self._output_filter):
                 abspath = msi.path.join(path, fname)
                 if msi.path.exists(abspath):
-                    self.logging('debug', 'step [{}] is exists'.format(fname),
-                                 method=self.step_code)
+                    self.logging('debug', 'File exists: [{}]'.format(fname),
+                                 method=f'{method}-[{self.step_code}]')
                     index_for_filter.append(i)
             if len(index_for_filter) > 0:
                 self.logging('debug',
-                             '[{}]-a total of {} output files are detected.'.format(self.step_code,
-                                                                                    len(index_for_filter)),
-                             method=method)
+                             f'-Total of {len(index_for_filter)} file(s) are skipped from re-processing.'
+                             'Please remove the file(s) listed above if it needs to be re-processed.',
+                             method=f'{method}-[{self.step_code}]')
                 arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
                 for arg_set in arg_sets:
                     for label, value in arg_set.items():
                         if isinstance(value, list):
                             arg_set[label] = [v for i, v in enumerate(value) if i not in index_for_filter]
             else:
-                self.logging('debug', 'passed'.format(self.step_code),
-                             method=method)
+                self.logging('debug', f'Passed',
+                             method=f'{method}-[{self.step_code}]')
         else:
-            self.logging('debug', '[{}]-no output filter'.format(self.step_code),
-                         method=method)
+            self.logging('debug', 'No output filter found. Inspection has been skipped.',
+                         method=f'{method}-[{self.step_code}]')
 
     def _inspect_run(self):
         """This hidden method will check if the interface was run properly by checking output
@@ -713,20 +714,21 @@ class InterfaceHandler(InterfaceBase):
             for i, (path, fname) in enumerate(self._output_filter):
                 abspath = msi.path.join(path, fname)
                 if not msi.path.exists(abspath):
+                    self.logging('debug', 'File does not created: [{}]'.format(fname),
+                                 method=f'{method}-[{self.step_code}]')
                     index_for_filter.append(i)
             if len(index_for_filter) > 0:
                 self.logging('debug',
-                             '[{}]-a total of {} output files are missing.'.format(self.step_code,
-                                                                                   len(index_for_filter)),
-                             method=method)
+                             f'-Total of {len(index_for_filter)} workers are failed.',
+                             method=f'{method}-[{self.step_code}]')
                 return 1
             else:
-                self.logging('debug', '[{}]-step processed.'.format(self.step_code),
-                             method=method)
+                self.logging('debug', 'Success.'.format(self.step_code),
+                             method=f'{method}-[{self.step_code}]')
                 return 0
         else:
-            self.logging('debug', '[{}]-no output filter'.format(self.step_code),
-                         method=method)
+            self.logging('debug', 'No output filter found. Inspection has been skipped.',
+                         method=f'{method}-[{self.step_code}]')
             return 1
 
     def _call_manager(self):
@@ -804,7 +806,7 @@ class InterfaceHandler(InterfaceBase):
                             if i is 3:
                                 # the case for the set_temporary has been initiated with path_only=True
                                 intensive_mkdir(value, interface=self.msi)
-                        # asigned arguments to manager
+                        #  arguments to manager
                         if kw in label:
                             mng.set_arg(label=label, args=value)
             managers.append(mng)
@@ -820,35 +822,36 @@ class InterfaceBuilder(InterfaceHandler):
     For more detail on Interface plugin development, please see our tutorial.
 
     Methods:
-        init_step: initiate step, required the step title and code to prevent any conflict with other step node.
-        is_initiated: check if the interface wrapper is initiated, useful when you working at the interpreter.
-        set_input: method to set input location
-        set_output: method to set output direction
-        set_temporary: method to set temporary file handler for running sub-step
-        set_var: method to set variable
-        set_cmd: method to set shell command (cannot use with set_func)
-        set_func: method to set python function (cannot use with set_cmd)
-        set_errterm: method to set error message string to indicate occurrence of the error event.
+        init_step:          initiate step, required the step title and code to prevent any conflict
+                            with other step node.
+        is_initiated:       check if the interface wrapper is initiated, useful when you working at the interpreter.
+        set_input:          method to set input location
+        set_output:         method to set output direction
+        set_temporary:      method to set temporary file handler for running sub-step
+        set_var:            method to set variable
+        set_cmd:            method to set shell command (cannot use with set_func)
+        set_func:           method to set python function (cannot use with set_cmd)
+        set_errterm:        method to set error message string to indicate occurrence of the error event.
         set_output_checker: method to specify which filename to check after step execution.
-                error occurred if the output file are not found. In case the output filename is different to the
-                input filename, the filename modifier must be provided.
-        run : method to schedule execution, with mode='python', use the python function instead of using shell command
-
+                            error occurred if the output file are not found.
+                            In case the output filename is different to the
+                            input filename, the filename modifier must be provided.
+        run:                method to schedule execution,
+                            with mode='python', it will run as the interface for the python function,
+                            instead of the shell command.
     """
     def __init__(self, processor: Processor, n_threads: int = None, relpath: bool = False):
         """
         Args:
-            processor: Processor instance
-            n_threads: number of threads
-            relpath: specify whether you are using relative path instead of absolute path on command
+            processor:      Processor instance
+            n_threads:      number of threads
+            relpath:        specify whether you are using relative path instead of absolute path on command
         Notes:
             relpath option added in response to the error related to the absolute path on AFNI's 3dttest++
         """
         super(InterfaceBuilder, self).__init__()
         self.reset(processor)
-        # self._parse_info_from_processor(processor)
-        # self._init_attr_for_inspection()
-        # self._init_attr_for_execution()
+
         if n_threads is None:
             self._n_threads = processor.scheduler_param['n_threads']
         else:
@@ -857,6 +860,13 @@ class InterfaceBuilder(InterfaceHandler):
         self.logging('debug', f'n_threads={n_threads}, relpath={relpath}', method='__init__')
         # Initiate scheduler
         self._schd = Scheduler(n_threads=self._n_threads)
+
+    def __enter__(self):
+        """ in order to use the 'with' method """
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
 
     def reset(self, processor: Optional[Processor] = None):
         """ reset all background process and clear queue """
@@ -878,18 +888,18 @@ class InterfaceBuilder(InterfaceHandler):
     def init_step(self, title: str, suffix: Optional[str] = None,
                   idx: Optional[int] = None, subcode: Optional[str] = None,
                   mode='processing'):
-        """initiate step directory with unique step code to prevent any conflict on folder naming.
+        """ initiate step directory with unique step code to prevent any conflict on folder naming.
         Notes:
             in case of using same title, please use suffix to distinguish with other, which useful when
             repeating same command with different parameter set.
         Args:
-            title: the title for the step directory
-            suffix: suffix for the title
-            idx: index of step
-            subcode: sub-step code to identify the sub-step process
-            mode: 'processing'- create step directory in working path
-                  'reporting' - create step directory in result path
-                  'masking'   - create step directory in mask path
+            title:          the title for the step directory
+            suffix:         suffix for the title
+            idx:            index of step
+            subcode:        sub-step code to identify the sub-step process
+            mode:           'processing'- create step directory in working path
+                            'reporting' - create step directory in result path
+                            'masking'   - create step directory in mask path
         """
         self.reset()
         run_order = self._update_run_order()
@@ -946,32 +956,36 @@ class InterfaceBuilder(InterfaceHandler):
     def set_input(self, label: str, input_path: str, filter_dict: Optional[dict] = None,
                   group_input: bool = False, mask: bool = False,
                   idx: Optional[int] = None, join_modifier: Optional[dict] = None):
-        """this method sets the input with filename filter, data can be collected from dataset path or working path,
+        """ method to set the input with filename filter, data can be collected from dataset path or working path,
         as well as masking path if mask is set to True.
-        At least one input path need to be set for building interface.
+        At least one input path need to be set for the interface.
 
-        If there is multiple input, the total number of jobs will be established from first set of input
-        and all other inputs must have the same number with first input. (inspection function will check it.)
+        Notes:
+            If you have multiple inputs, the total number of jobs are established from the first set of input
+            and all other inputs must have the same number with first input. (inspection function will check it.)
 
-        The method keyword argument is provided the option to apply group statistic,
-        in the regular cases, each command take one master input to create the processed one master output
-        which in the case of method=0. If the method=1 is given, it takes all filtered data using provided filter_dict
-        and treat it as single input, which is useful for running statistics.
+            The group_input option can be used for the case that multiple inputs are required to get single output,
+            such as group statistics. Since this form of processing can break the original data structure,
+            only available when the mode of initiated step is 'reporting'.
+            In this case, the input datasets will be collected according to the given filter_dict,
+            then you can specify how to construct input string using join_modifier.
+            e.g. If you set join_modifier as dict(prefix=None, suffix='[0]', spacer=', ')
+                 then the input string will be
+                 '/path/filename_1[0], /path/filename_2[0], ...'
 
         Args:
-            label(str):             label for space holder on command template
-            input_path(str):        absolute path, step directory, datatype or step code
-            filter_dict(dict):      filter set for parsing input data.
-                                    available keys={'contains', 'ignore', 'ext', 'regex', # for filename
-                                                    'subjects', 'sessions}                # for select specific group
-            group_input (int):      False - take one file for a input to run
-                                    True - take multiple files as one input to run,
-                                           only can be used for  'reporting' mode
-            mask(bool):             True if input is mask file
-            idx(int):               index of the filtered dataset in order to pick one file as input
-                                    across subjects or sessions.
-            join_modifier(dict):    can be used when method=1. this option can be used to alter the way of
-                                    listing the set of inputs.
+            label:          label for space holder on command template
+            input_path:     absolute path, step directory, datatype or step code
+            filter_dict:    filter set for parsing input data.
+                            available keys={'contains', 'ignore', 'ext', 'regex', # for filename
+                                            'subjects', 'sessions}                # for select specific group
+            group_input:    False   - take one file for a input to run
+                            True    - take multiple files as one input to run,
+                                      only can be used for  'reporting' mode
+            mask:           True if input is mask file
+            idx:            index of the filtered dataset in order to pick one file as input
+                            across subjects or sessions.
+            join_modifier:  available option when group_input is True. Please check the Above Notes for detail.
                                     available keys={'prefix', 'suffix', # too add additional string on input paths
                                                     'spacer'}           # use given spacer between set of inputs
                                                                           (e.g. ',' or '\t') default is single space
@@ -984,17 +998,19 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_static_input(self, label, input_path, filter_dict=None, idx=0, mask=False):
+    def set_static_input(self, label: str, input_path: str,
+                         filter_dict: Optional[dict] = None,
+                         idx: int = 0, mask: Optional[str] = False):
         """ method to set static input for each subject. useful when only one specific file need to be
         Args:
-            label(str):             label for space holder on command template
-            input_path(str):        absolute path, step directory, datatype or step code
-            filter_dict(dict):      filter set for parsing input data.
-                                    available keys={'contains', 'ignore', 'ext', 'regex', # for filename
-                                                    'subjects', 'sessions}                # for select specific group
-            idx(int):               index of the filtered dataset in order to pick one file as input
-                                    across subjects or sessions.
-            mask(bool):             True if input is mask file
+            label:          label for space holder on command template
+            input_path:     absolute path, step directory, datatype or step code
+            filter_dict:    filter set for parsing input data.
+                            available keys={'contains', 'ignore', 'ext', 'regex', # for filename
+                                            'subjects', 'sessions}                # for select specific group
+            idx:            index of the filtered dataset in order to pick one file as input
+                            across subjects or sessions.
+            mask:           True if input is mask file
         """
         run_order = self._update_run_order()
         daemon = self.get_daemon(self._set_static_input, run_order, label, input_path,
@@ -1009,14 +1025,14 @@ class InterfaceBuilder(InterfaceHandler):
         and [subject_session], respectively, and extension must be specified.
 
         Args:
-            label(str):             output place-holder for command template,
-                                    'output' will help to prevent repetition of finished step
-            prefix(str):
-            suffix(str):
-            modifier(dict or str):  key(find):value(replace) or file(folder)name
-                                    in case the input method was set to 1,
-                                    user can specify file or folder name of output
-            ext(str or False):      extension if it need to be changed. If False, extension will be removed.
+            label:          output place-holder for command template,
+                            'output' will help to prevent repetition of finished step
+            prefix:         output filename prefix
+            suffix:         output filename suffix
+            modifier:       key(find):value(replace) or file(folder)name
+                            in case the input method was set to 1,
+                            user can specify file or folder name of output
+            ext:            extension if it need to be changed. If False, extension will be removed.
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1032,16 +1048,18 @@ class InterfaceBuilder(InterfaceHandler):
         deprecated_warning('check_output', 'set_output_checker', future=True)
         return self.set_output_checker
 
-    def set_output_checker(self, label: str = 'output', prefix: Optional[str] = None,
-                           suffix: Optional[str] = None, ext: Optional[str] = None):
-        """method to generate output filter to check whether the output file has been generated,
+    def set_output_checker(self, label: str = 'output',
+                           prefix: Optional[str] = None,
+                           suffix: Optional[str] = None,
+                           ext: Optional[str] = None):
+        """ method to generate output filter to check whether the output file has been generated,
         if the output file exists already, skip current step.
 
         Args:
-            label(str):     main output placeholder on command template
-            prefix(str):    in case the executing command add prefix to the output filename
-            suffix(str):    in case the executing command add suffix to the output filename
-            ext(str):       in case the executing command add extension to the output filename
+            label:         main output placeholder on command template
+            prefix:        in case the executing command add prefix to the output filename
+            suffix:        in case the executing command add suffix to the output filename
+            ext:           in case the executing command add extension to the output filename
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1053,8 +1071,8 @@ class InterfaceBuilder(InterfaceHandler):
     def set_temporary(self, label: str, path_only: bool = False):
         """ method to set temporary output step.
         Args:
-            label:     temporary output place-holder for command template.
-            path_only(bool)
+            label:          temporary output place-holder for command template.
+            path_only:      create main step path only -> TODO: actually I forgot why I've added this feature
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1067,9 +1085,9 @@ class InterfaceBuilder(InterfaceHandler):
         Notes:
             If no input set prior to this method, Error will be raised.
         Args:
-            label: name of place-holder of variable for command of function template.
-            value: value to set as variable on command template
-            quote: True if the value need to be encapsulated by the quote on the shell command
+            label:          name of place-holder of variable for command of function template.
+            value:          value to set as variable on command template
+            quote:          True if the value need to be encapsulated by the quote on the shell command
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1083,7 +1101,7 @@ class InterfaceBuilder(InterfaceHandler):
         Notes:
             If no input set prior to this method, Error will be raised.
         Args:
-            command(str): command template, use decorator '*[label]' to place arguments.
+            command:        command template, use decorator '*[label]' to place arguments.
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1091,12 +1109,12 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def set_func(self, func):
+    def set_func(self, func: Callable[..., bool]):
         """ method to set python function, cannot use with 'set_func' method
         Notes:
             if no input set prior to this method, Error will be raised.
         Args:
-            func: function template, the keyword argument on input
+            func:           function template, the keyword argument on input
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1107,7 +1125,7 @@ class InterfaceBuilder(InterfaceHandler):
     def run(self, mode : Optional[str] = None):
         """ schedule the execution
         Args:
-            mode: set 'python' if you use python function instead of shell command.
+            mode:           set 'python' if you use python function instead of shell command.
         """
         # submit job to scheduler
         run_order = self._update_run_order()
@@ -1119,7 +1137,7 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def _run(self, run_order, mode=None):
-        """hidden layer to run on daemon"""
+        """ hidden layer to run on daemon """
         if self._step_processed is True:
             pass
         else:
@@ -1152,26 +1170,30 @@ class InterfaceBuilder(InterfaceHandler):
             self.logging('debug', 'updating dataset bucket.', method='run-[{}]'.format(self.step_code))
             self._bucket.update()
 
-            if inspect_result:
-                self.logging('warn', 'missing output file(s).', method='run-[{}]'.format(self.step_code))
             # _parse stdout and stderr
             self.logging('debug', 'collect STDOUT from workers.', method='run-[{}]'.format(self.step_code))
 
-            for i, workers in self._schd.stdout.items():
+            for label, workers in self._schd.stdout.items():
                 for j in sorted(workers.keys()):
+                    _, job_idx = label.split('_')
+                    cmd = self._schd.queues[int(job_idx)][j].cmd
                     if workers[j] is None:
-                        self.logging('stdout', 'None\n')
+                        self.logging('stdout', f'CMD: {cmd}\n   None\n')
                     else:
-                        self.logging('stdout', '\n  {}'.format('\n  '.join(workers[j])))
+                        self.logging('stdout', 'CMD: {0}\n  {1}'.format(cmd, '\n  '.join(workers[j])))
             self.logging('debug', 'collect STDERR from workers.', method='run-[{}]'.format(self.step_code))
 
-            for i, workers in self._schd.stderr.items():
+            for label, workers in self._schd.stderr.items():
                 for j in sorted(workers.keys()):
+                    _, job_idx = label.split('_')
+                    cmd = self._schd.queues[int(job_idx)][j].cmd
                     if workers[j] is None:
-                        self.logging('stderr', 'None\n')
+                        self.logging('stderr', f'CMD: {cmd}\n   None\n')
                     else:
-                        self.logging('stderr', '\n  {}'.format(u'\n  '.join(workers[j])))
+                        self.logging('stderr', 'CMD: {0}\n  {1}'.format(cmd, '\n  '.join(workers[j])))
 
+            if inspect_result:
+                self.logging('warn', 'missing output file(s).', method='run-[{}]'.format(self.step_code))
             # step code update
             self.clear()
         # update executed folder
@@ -1179,16 +1201,16 @@ class InterfaceBuilder(InterfaceHandler):
 
     @property
     def waiting_steps(self):
+        """ return the step interface on waiting list for debugging """
         return self._procobj.waiting_list
 
     @property
     def processed_steps(self):
+        """ return the step interface on processed """
         return self._procobj.processed_list
 
-    def remove_from_waitinglist(self):
-        self.clear()
-
     def clear(self):
+        """ clear step code assigned to current working step if it scheduled to the waiting list """
         if self.step_code is not None:
             last_step_code = self._procobj.waiting_list[0]
             if last_step_code != self.step_code:
@@ -1199,13 +1221,16 @@ class InterfaceBuilder(InterfaceHandler):
             self.logging('debug', 'processed.',
                          method='run-[{}]'.format(self.step_code))
 
-    def get_inputs(self, label):
-        """ the method to check inputs """
+    def get_inputs(self, label: str):
+        """ the method to check assigned inputs, the input label must be specified
+        Args:
+            label:          input label
+        """
         input_ready = False
         while input_ready is False:
             try:
                 inputs = self._input_set[label]
-                if isinstance(inputs, str):   # case of input method == 1
+                if isinstance(inputs, str):   # case of group_input is True
                     inputs = self._input_set[label].split(self._input_spacer)
                     input_ready = True
                 elif isinstance(inputs, list):
@@ -1216,10 +1241,15 @@ class InterfaceBuilder(InterfaceHandler):
         return
 
     def get_input_ref(self):
+        """ return input reference (only used internally) """
         return self._input_ref
 
-    def run_manually(self, args, mode=None):
-        """ execution method for debugging purpose. """
+    def run_manually(self, args: dict, mode=None):
+        """ method to run current working step interface manually,
+        Args:
+            args:           the key:value pairs correspond to the argument you've set for this working step
+            mode:           'python' if the working step interface is initiated for the python function
+        """
         loop = True
         start = time.time()
         managers = []

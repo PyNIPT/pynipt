@@ -2,17 +2,25 @@ from .bucket import Bucket
 from .plugin import PluginLoader
 from ..config import config
 from ..errors import *
+from typing import Optional
+from shleeh.utils import deprecated_warning
 import time
 
-from IPython import get_ipython
-if get_ipython() and len(get_ipython().config.keys()):
+try:
+    from IPython import get_ipython
+    if get_ipython() and len(get_ipython().config.keys()):
+        notebook_env = True
+    else:
+        notebook_env = False
+except ModuleNotFoundError:
+    notebook_env = False
+
+if notebook_env:
     from tqdm import tqdm_notebook as progressbar
     from IPython.display import display
-    notebook_env = True
 else:
     from pprint import pprint as display
     from tqdm import tqdm as progressbar
-    notebook_env = False
 
 
 class Pipeline(object):
@@ -92,17 +100,26 @@ class Pipeline(object):
             print("\n".join(output))
 
     def detach_package(self):
-        """ Detach selected pipeline package
-        """
+        """ Detach selected pipeline package """
         self.selected   = None
+        self._pipeline_title = None
         self._stored_id = None
 
     @property
+    def installed_interfaces(self):
+        """ return all available interface imported from installed plugins """
+        parser = dict()
+        for name, mod in self._plugin.interface_objs.items():
+            parser[name] = mod.avail
+        return parser
+
+    @property
     def installed_packages(self):
+        """ return all available pipeline packages imported from installed plugins """
         return self._plugin.avail_pkgs
 
-    def set_scratch_package(self, title):
-        """set scratch package for developing pipeline script
+    def set_scratch_package(self, title: str):
+        """ set scratch package for developing pipeline script from scratch
         Args:
             title: name of pipeline package
         """
@@ -117,7 +134,8 @@ class Pipeline(object):
 
     @property
     def select_package(self):
-        """for a backward compatibility"""
+        """ for a backward compatibility """
+        deprecated_warning('selected_package', 'set_package', future=True)
         return self.set_package
 
     def set_package(self, package_id: int, **kwargs):
@@ -148,49 +166,55 @@ class Pipeline(object):
             output = ["List of available pipelines in running package:"] + avails
             print("\n".join(output))
 
-    def import_plugin(self, name, file_path):
+    def import_plugin(self, name: str, file_path: str):
         self._pipeobj.from_file(name, file_path)
 
     def reset(self, **kwargs):
-        """Reset pipeline instance. All items in queue will be reset."""
+        """ Reset pipeline instance. All items in queue will be reset. """
+        # TODO: Find a way to kill all running thread to stop processing
         if self._pipeline_title is not None:
             self._interface_plugins = self._plugin.get_interfaces()(self._bucket, self._pipeline_title,
                                                                     logger=self._logger,
                                                                     n_threads=self._n_threads)
-            self._pipeobj = self._plugin.get_pkgs(self._stored_id)
-            selected_pkg = getattr(self._pipeobj, self._pipeline_title)
-            self.selected = selected_pkg(self._interface_plugins, **kwargs)
+            if self._stored_id:
+                self._pipeobj = self._plugin.get_pkgs(self._stored_id)
+            if hasattr(self._pipeobj, self._pipeline_title):
+                selected_pkg = getattr(self._pipeobj, self._pipeline_title)
+                self.selected = selected_pkg(self._interface_plugins, **kwargs)
         else:
             pass
 
-    def check_progression(self):
+    def check_progression(self, step_code: str = None):
         """Method that can realtime progression of pipeline execution."""
         if self._interface_plugins is not None:
-            param = self._interface_plugins.scheduler_param
-            queued_jobs = len(param['queue'])
-            finished_jobs = len(param['done'])
-            desc = self.installed_packages[self._stored_id] if self._stored_id is not None else self._pipeline_title
-            self._progressbar = progressbar(total=queued_jobs + finished_jobs,
-                                            desc=desc,
-                                            initial=finished_jobs)
+            if step_code is None:
+                param = self._interface_plugins.scheduler_param
+                queued_jobs = len(param['queue'])
+                finished_jobs = len(param['done'])
+                desc = self.installed_packages[self._stored_id] if self._stored_id is not None else self._pipeline_title
+                self._progressbar = progressbar(total=queued_jobs + finished_jobs,
+                                                desc=desc,
+                                                initial=finished_jobs)
 
-            def workon(n_queued, n_finished):
-                while n_finished < n_queued + n_finished:
-                    delta = n_queued - len(param['queue'])
-                    if delta > 0:
-                        n_queued -= delta
-                        n_finished += delta
-                        self._progressbar.update(delta)
-                    time.sleep(0.2)
-                self._progressbar.close()
+                def workon(n_queued, n_finished):
+                    while n_finished < n_queued + n_finished:
+                        delta = n_queued - len(param['queue'])
+                        if delta > 0:
+                            n_queued -= delta
+                            n_finished += delta
+                            self._progressbar.update(delta)
+                        time.sleep(0.2)
+                    self._progressbar.close()
 
-            import threading
-            thread = threading.Thread(target=workon, args=(queued_jobs, finished_jobs))
-            if notebook_env is True:
-                display(self._progressbar)
-                thread.start()
+                import threading
+                thread = threading.Thread(target=workon, args=(queued_jobs, finished_jobs))
+                if notebook_env is True:
+                    display(self._progressbar)
+                    thread.start()
+                else:
+                    thread.start()
             else:
-                thread.start()
+                self.schedulers[step_code].check_progress()
 
     def set_param(self, **kwargs):
         """Set parameters
@@ -241,12 +265,10 @@ class Pipeline(object):
         return self._bucket
 
     def remove(self, step_code, mode='processing'):
-        """
-
+        """ Remove specified step from the file system
         Args:
-            step_code:
-            mode:
-
+            step_code:  the step code you want to remove from file system
+            mode:       the data class mode that the step you specified is locating.
         Raises:
             InvalidStepCode
         """
@@ -260,19 +282,25 @@ class Pipeline(object):
 
     @property
     def interface(self):
+        """ interface object that you can access all installed interface functions """
         return self._interface_plugins
 
     @property
     def schedulers(self):
-        running_obj = self._interface_plugins.running_obj
-        steps = running_obj.keys()
-        return {s : running_obj[s].threads for s in steps}
+        """ the namespace to access scheduler of the running step """
+        steps = self.builders.keys()
+        return {s : self.builders[s].threads for s in steps}
+
+    @property
+    def builders(self):
+        """ the namespace to access interface builder of the running step """
+        return self._interface_plugins.running_obj
 
     @property
     def managers(self):
-        running_obj = self._interface_plugins.running_obj
-        steps = running_obj.keys()
-        return {s: running_obj[s].mngs for s in steps}
+        """ the namespace to access manager of the running step """
+        steps = self.builders.keys()
+        return {s: self.builders[s].mngs for s in steps}
 
     def get_builder(self):
         if self.interface is not None:
@@ -281,7 +309,20 @@ class Pipeline(object):
         else:
             return None
 
-    def get_dset(self, step_code, ext='nii.gz', regex=None):
+    def get_dset(self, step_code: str,
+                 ext: str = 'nii.gz',
+                 regex: Optional[str] = None) -> (Bucket, None):
+        """ the method to access dataset in specified step
+        Notes:
+            if you specify the data type on dataset, instead of step code, it will parse the dataset
+            from raw dataset folder
+        Args:
+            step_code:  if the input is datatype instead of step code, return rawdata bucket
+            ext:        file extension filter
+            regex:      regex pattern for filtering the dataset
+        Returns:
+            dataset:    pynipt.Bucket object that containing filtered data
+        """
         if self.interface is not None:
             proc = self.interface
             proc.update()
@@ -295,8 +336,10 @@ class Pipeline(object):
                 try:
                     step = proc.get_report_dir(step_code)
                 except KeyError:
-                    step = proc.get_mask_dir(step_code)
-
+                    try:
+                        step = proc.get_mask_dir(step_code)
+                    except KeyError:
+                        step = step_code
             if step_code in proc.executed.keys():
                 dataclass = 1
                 filter_['steps'] = step
@@ -308,9 +351,25 @@ class Pipeline(object):
                 filter_['datatypes'] = step
                 del filter_['pipelines']
             else:
-                return None
+                if self.bucket.params[0] is not None:
+                    if step_code in self.bucket.params[0].datatypes:
+                        dataclass = 0
+                        filter_['datatypes'] = step
+                        del filter_['pipelines']
+                    else:
+                        return None
+                else:
+                    return None
             return self.bucket(dataclass, copy=True, **filter_)
         else:
+            filter_ = dict(ext=ext)
+            if regex is not None:
+                filter_['regex'] = regex
+            if self.bucket.params[0] is not None:
+                if step_code in self.bucket.params[0].datatypes:
+                    dataclass = 0
+                    filter_['datatypes'] = step_code
+                    return self.bucket(dataclass, copy=True, **filter_)
             return None
 
     def __repr__(self):

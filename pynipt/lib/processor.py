@@ -366,40 +366,44 @@ class ProcessorBase(object):
         except:
             raise UnexpectedError
 
-    def _get_step_dir(self, step_code):
+    def _get_step_dir(self, step_code, verbose=False):
         """return a directory name of working step path"""
         if step_code.upper() in self._existing_step_dir.keys():
             return f"{step_code}_{self._existing_step_dir[step_code]}"
         else:
             exc_msg = 'given step code is not exist.'
-            self.logging('warn', exc_msg)
+            if verbose:
+                self.logging('warn', exc_msg)
             raise KeyError(exc_msg)
 
-    def _get_temp_dir(self, step_code):
+    def _get_temp_dir(self, step_code, verbose=False):
         """return a directory name of working step path"""
         if step_code.upper() in self._existing_temp_dir.keys():
             return f"{step_code}_{self._existing_temp_dir[step_code]}"
         else:
             exc_msg = 'given step code is not exist.'
-            self.logging('warn', exc_msg)
+            if verbose:
+                self.logging('warn', exc_msg)
             raise KeyError(exc_msg)
 
-    def _get_report_dir(self, step_code):
+    def _get_report_dir(self, step_code, verbose=False):
         """return directory name of result step path"""
         if step_code.upper() in self._existing_report_dir.keys():
             return f"{step_code}_{self._existing_report_dir[step_code]}"
         else:
             exc_msg = 'given report code is not exist.'
-            self.logging('warn', exc_msg)
+            if verbose:
+                self.logging('warn', exc_msg)
             raise KeyError(exc_msg)
 
-    def _get_mask_dir(self, step_code):
+    def _get_mask_dir(self, step_code, verbose=False):
         """return directory name of marking step path"""
         if step_code.upper() in self._existing_mask_dir.keys():
             return "{}_{}".format(step_code, self._existing_mask_dir[step_code])
         else:
             exc_msg = 'given mask code is not exist.'
-            self.logging('warn', exc_msg)
+            if verbose:
+                self.logging('warn', exc_msg)
             raise KeyError(exc_msg)
 
     @staticmethod

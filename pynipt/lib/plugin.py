@@ -2,11 +2,12 @@ import importlib
 import importlib.util as imp_util
 import re
 from inspect import getsource
-from shleeh.utils import get_installed_pkg
+from shleeh.utils import get_installed_pkg, user_warning
 from ..errors import *
 
 
 class PluginParser:
+    """ plugin parser, the input must be single file module not whole pipeline package """
     def __init__(self, obj):
         # privates
         self._code = getsource(obj).split('\n')
@@ -165,6 +166,7 @@ class PluginParser:
 
 
 class PluginLoader:
+    """ Plugin loader for Pipeline class """
     def __init__(self):
         # public
         self.pipeline_objs = dict()
@@ -174,6 +176,9 @@ class PluginLoader:
         self._imported_interfaces = []
         self._imported_pipelines = []
         self._installed = []
+        self._invalid_plugins = dict()
+        self._duplicated_interfaces = dict()
+        self._duplicated_pipelines = dict()
 
         # execute protected methods
         self._parse_plugins()
@@ -188,37 +193,61 @@ class PluginLoader:
         p_plugin = r'^pynipt[-_]plugin[-_](?P<name>.*)$'
         list_plugin = get_installed_pkg(regex=p_plugin)
 
+        issued_pkg = dict()
+
         for p in list_plugin:
             pkg_name = re.match(p_plugin, p.project_name).group('name')
             mod_name = os.path.basename(p.module_path)
             module = importlib.import_module(mod_name)
+
             if not hasattr(module, 'interface') and not hasattr(module, 'pipeline'):
-                raise InvalidPlugin(f'Invalid plugin: {mod_name}')
-            if hasattr(module, 'interface'):
-                if mod_name in self._imported_interfaces:
-                    raise ConflictPlugin
-                self.interface_objs[mod_name] = PluginParser(module.interface)
-                self._imported_interfaces.append(mod_name)
-            if hasattr(module, 'pipeline'):
-                if mod_name in self._imported_pipelines:
-                    raise ConflictPlugin
-                self.pipeline_objs[mod_name] = PluginParser(module.pipeline)
-                self._imported_interfaces.append(mod_name)
-            self._installed.append(pkg_name)
+                if pkg_name not in issued_pkg.keys():
+                    issued_pkg[pkg_name] = 'invalid'
+            else:
+                if hasattr(module, 'interface'):
+                    if mod_name in self._imported_interfaces:
+                        if pkg_name not in issued_pkg.keys():
+                            issued_pkg[pkg_name] = []
+                        issued_pkg[pkg_name].append('interface')
+                    else:
+                        try:
+                            self.interface_objs[mod_name] = PluginParser(module.interface)
+                            self._imported_interfaces.append(mod_name)
+                        except InvalidPlugin:
+                            user_warning(f'The interface plugin in {pkg_name} is invalid.')
+                if hasattr(module, 'pipeline'):
+                    if mod_name in self._imported_pipelines:
+                        if pkg_name not in issued_pkg.keys():
+                            issued_pkg[pkg_name] = []
+                        issued_pkg[pkg_name].append('pipeline')
+                    else:
+                        try:
+                            self.pipeline_objs[mod_name] = PluginParser(module.pipeline)
+                            self._imported_pipelines.append(mod_name)
+                        except InvalidPlugin:
+                            user_warning(f'The pipeline plugin in {pkg_name} is invalid.')
+            if pkg_name not in issued_pkg.keys():
+                self._installed.append(pkg_name)
+        if issued_pkg:
+            self._invalid_plugins = issued_pkg
 
     def _check_conflicts(self):
         interface_items = []
         for mod_name, itfs in self.interface_objs.items():
             for m in itfs.avail:
                 if m in interface_items:
-                    raise ConflictPlugin(f'Duplicated interface method: {m}')
+                    if mod_name not in self._duplicated_interfaces.keys():
+                        self._duplicated_interfaces[mod_name] = []
+                    self._duplicated_interfaces[mod_name].append(m)
                 else:
                     interface_items.append(m)
         pipeline_items = []
         for mod_name, pkgs in self.pipeline_objs.items():
             for p in pkgs.avail:
                 if p in pipeline_items:
-                    raise ConflictPlugin(f'Duplicated pipeline package: {p}')
+                    if mod_name not in self._duplicated_pipelines.keys():
+                        self._duplicated_pipelines[mod_name] = []
+                    self._duplicated_pipelines[mod_name].append(p)
                 else:
                     pipeline_items.append(p)
 
