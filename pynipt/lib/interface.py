@@ -1175,7 +1175,10 @@ class InterfaceBuilder(InterfaceHandler):
 
             for label, workers in self._schd.stdout.items():
                 for j in sorted(workers.keys()):
-                    _, job_idx = label.split('_')
+                    if re.search('_', label):
+                        _, job_idx = label.split('_')
+                    else:
+                        job_idx = 0
                     cmd = self._schd.queues[int(job_idx)][j].cmd
                     if workers[j] is None:
                         self.logging('stdout', f'CMD: {cmd}\n   None\n')
@@ -1185,7 +1188,10 @@ class InterfaceBuilder(InterfaceHandler):
 
             for label, workers in self._schd.stderr.items():
                 for j in sorted(workers.keys()):
-                    _, job_idx = label.split('_')
+                    if re.search('_', label):
+                        _, job_idx = label.split('_')
+                    else:
+                        job_idx = 0
                     cmd = self._schd.queues[int(job_idx)][j].cmd
                     if workers[j] is None:
                         self.logging('stderr', f'CMD: {cmd}\n   None\n')
