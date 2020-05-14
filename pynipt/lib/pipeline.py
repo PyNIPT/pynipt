@@ -176,7 +176,7 @@ class Pipeline(object):
             self._interface_plugins = self._plugin.get_interfaces()(self._bucket, self._pipeline_title,
                                                                     logger=self._logger,
                                                                     n_threads=self._n_threads)
-            if self._stored_id:
+            if self._stored_id is not None:
                 self._pipeobj = self._plugin.get_pkgs(self._stored_id)
             if hasattr(self._pipeobj, self._pipeline_title):
                 selected_pkg = getattr(self._pipeobj, self._pipeline_title)
