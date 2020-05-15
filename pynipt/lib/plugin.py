@@ -276,13 +276,32 @@ class PluginLoader:
         self._check_conflicts()
 
     def get_interfaces(self):
+        """ Return combined interface object """
         imported_interfaces = []
         for _, itf in self.interface_objs.items():
             imported_interfaces.append(itf.obj.Interface)
 
         class ImportedInterface(*imported_interfaces):
             def __init__(self, *args, **kwargs):
+                # from ..config import config
+                # from collections import OrderedDict
+                #
+                # cfg = config['Preferences']
+                # if 'n_threads' in kwargs.keys():
+                #     if kwargs['n_threads'] is None:
+                #         self._n_threads = cfg.getint('number_of_threads')
+                #     else:
+                #         self._n_threads = kwargs.pop('n_threads')
+                # else:
+                #     self._n_threads = cfg.getint('number_of_threads')
                 super(ImportedInterface, self).__init__(*args, **kwargs)
+
+                # install default interface in plugin folder
+                # to control scheduling issues,
+                # self._waiting_list = []
+                # self._processed_list = []
+                # self._running_obj = OrderedDict()
+                # self.update()
 
         return ImportedInterface
 

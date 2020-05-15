@@ -374,7 +374,7 @@ class InterfaceHandler(InterfaceBase):
                     self.logging('warn', exc_msg, method=method_name)
 
             if self._input_method is not 0:
-                exc_msg = 'static_input is only allowed only for input_method=0'
+                exc_msg = 'static_input is only allowed only for group_method=False'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._input_set[label] = list()
@@ -409,6 +409,7 @@ class InterfaceHandler(InterfaceBase):
                                 dset = self._bucket(1, pipelines=self._label, steps=input_path,
                                                     subjects=subj, sessions=sess,
                                                     **filter_dict)
+                    # TODO: below code will pick the indexed file. it could be list of files in case of python?
                     if relpath:
                         self._input_set[label].append(os.path.relpath(dset[idx].Abspath))
                     else:
@@ -1074,7 +1075,7 @@ class InterfaceBuilder(InterfaceHandler):
         """ method to set temporary output step.
         Args:
             label:          temporary output place-holder for command template.
-            path_only:      create main step path only -> TODO: actually I forgot why I've added this feature
+            path_only:      create main step path only for
         """
         run_order = self._update_run_order()
         # add current step code to the step list
@@ -1181,11 +1182,17 @@ class InterfaceBuilder(InterfaceHandler):
                         _, job_idx = label.split('_')
                     else:
                         job_idx = 0
-                    cmd = self._schd.queues[int(job_idx)][j].cmd
-                    if workers[j] is None:
-                        self.logging('stdout', f'CMD: {cmd}\n   None\n')
+                    if mode == 'python':
+                        mode_key = 'Func'
+                        mode_val = self._schd.queues[int(job_idx)][j].func
                     else:
-                        self.logging('stdout', 'CMD: {0}\n  {1}'.format(cmd, '\n  '.join(workers[j])))
+                        mode_key = 'CMD'
+                        mode_val = self._schd.queues[int(job_idx)][j].cmd
+                    if workers[j] is None:
+                        self.logging('stdout', f'{mode_key}: {mode_val}\n   None\n')
+                    else:
+                        self.logging('stdout', '{0}: {1}\n  {2}'.format(mode_key, mode_val,
+                                                                        '\n  '.join(workers[j])))
             self.logging('debug', 'collect STDERR from workers.', method='run-[{}]'.format(self.step_code))
 
             for label, workers in self._schd.stderr.items():
@@ -1194,11 +1201,17 @@ class InterfaceBuilder(InterfaceHandler):
                         _, job_idx = label.split('_')
                     else:
                         job_idx = 0
-                    cmd = self._schd.queues[int(job_idx)][j].cmd
-                    if workers[j] is None:
-                        self.logging('stderr', f'CMD: {cmd}\n   None\n')
+                    if mode == 'python':
+                        mode_key = 'Func'
+                        mode_val = self._schd.queues[int(job_idx)][j].func
                     else:
-                        self.logging('stderr', 'CMD: {0}\n  {1}'.format(cmd, '\n  '.join(workers[j])))
+                        mode_key = 'CMD'
+                        mode_val = self._schd.queues[int(job_idx)][j].cmd
+                    if workers[j] is None:
+                        self.logging('stderr', f'{mode_key}: {mode_val}\n   None\n')
+                    else:
+                        self.logging('stderr', '{0}: {1}\n  {2}'.format(mode_key, mode_val,
+                                                                        '\n  '.join(workers[j])))
 
             if inspect_result:
                 self.logging('warn', 'missing output file(s).', method='run-[{}]'.format(self.step_code))
