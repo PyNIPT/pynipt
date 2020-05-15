@@ -992,8 +992,10 @@ class InterfaceBuilder(InterfaceHandler):
         """
         run_order = self._update_run_order()
         # add current step code to the step list
+
+        method = 1 if group_input else 0   # convert to legacy parameter
         daemon = self.get_daemon(self._set_input, run_order, label, input_path,
-                                 filter_dict=filter_dict, method=group_input, mask=mask, idx=idx,
+                                 filter_dict=filter_dict, method=method, mask=mask, idx=idx,
                                  join_modifier=join_modifier, relpath=self._relpath)
         # update daemon to monitor
         self._daemons[run_order] = daemon
