@@ -2,6 +2,7 @@
 ### Version: 0.1
 
 #### Common features:
+- Provide Continuity of analysis working flow
 - While the BIDS became a most prominent standard for organizing dataset, as the BIDS original purpose stated to make it handy for processing data,
 we developed a pipeline scripting platform that can be used in Python interpreter environment with easy-to-use and easy-to-manage features to support the neuroscince community in terms of 
 reproducibility of the analysis.
