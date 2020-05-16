@@ -16,11 +16,11 @@ except ModuleNotFoundError:
     notebook_env = False
 
 if notebook_env:
-    from tqdm import tqdm_notebook as progressbar
+    from tqdm.notebook import tqdm as progressbar, trange
     from IPython.display import display
 else:
     from pprint import pprint as display
-    from tqdm import tqdm as progressbar
+    from tqdm import tqdm as progressbar, trange
 
 
 class Pipeline(object):
@@ -208,13 +208,35 @@ class Pipeline(object):
 
                 import threading
                 thread = threading.Thread(target=workon, args=(queued_jobs, finished_jobs))
-                if notebook_env is True:
-                    display(self._progressbar)
-                    thread.start()
-                else:
-                    thread.start()
+                thread.start()
             else:
-                self.schedulers[step_code].check_progress()
+                schd = self.schedulers[step_code]
+
+                def workon():
+                    if schd._num_steps == 0:
+                        if step_code not in self.interface.waiting_list:
+                            print(f'Not queued: [{step_code}].')
+                            return
+                        else:
+                            # wait until its ready
+                            while schd._num_steps == 0:
+                                time.sleep(0.2)
+                    for step in trange(schd._num_steps, desc=f'[{step_code}]'):
+                        n_fin_workers = len(schd._succeeded_workers[step]) + len(schd._failed_workers[step])
+                        total_workers = len(schd._queues[step])
+                        sub_bar = progressbar(total=total_workers, desc=f'substep::{step}')
+                        while n_fin_workers < total_workers:
+                            cur_fin_workers = len(schd._succeeded_workers[step]) + len(schd._failed_workers[step])
+                            delta = cur_fin_workers - n_fin_workers
+                            if delta > 0:
+                                n_fin_workers += delta
+                                sub_bar.update(delta)
+                            time.sleep(0.2)
+                        sub_bar.close()
+
+                import threading
+                thread = threading.Thread(target=workon)
+                thread.start()
 
     def set_param(self, **kwargs):
         """Set parameters
