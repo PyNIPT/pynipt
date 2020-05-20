@@ -643,7 +643,7 @@ class InterfaceHandler(InterfaceBase):
         if self._step_processed is True:
             pass
         else:
-            if self._type != 'cmd':
+            if self._type == 'cmd':
                 self._wait_my_turn(run_order, '{}'.format(command), method='set_cmd')
                 self._cmd_set[len(self._cmd_set.keys())] = command
                 self._report_status(run_order)
