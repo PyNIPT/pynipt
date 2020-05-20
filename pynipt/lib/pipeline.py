@@ -2,7 +2,7 @@ from .bucket import Bucket
 from .plugin import PluginLoader
 from ..config import config
 from ..errors import *
-from typing import Optional
+from typing import Optional, Union
 from shleeh.utils import deprecated_warning
 import time
 
@@ -184,32 +184,78 @@ class Pipeline(object):
         else:
             pass
 
-    def check_progression(self, step_code: str = None):
+    @property
+    def queued_steps(self):
+        if self._interface_plugins is not None:
+            return self._interface_plugins.scheduler_param['queue']
+        else:
+            return None
+
+    @property
+    def finished_steps(self):
+        if self._interface_plugins is not None:
+            return self._interface_plugins.scheduler_param['done']
+        else:
+            return None
+
+    def is_failed(self, step_code: str, idx: Optional[Union[int, None]] = None) -> bool:
+        """ method to check the selected step is failed on processing
+        Args:
+            step_code: step code
+            idx: index for substep (default=0)
+        Returns:
+            True if the step failed else False
+        """
+        failed_workers = self.schedulers[step_code]._failed_workers
+
+        if len(failed_workers):
+            num_fw = 0
+            if idx is None:
+                for fw in failed_workers.values():
+                    num_fw += len(fw)
+            else:
+                num_fw += len(failed_workers[idx])
+            if num_fw:
+                return True
+        return False
+
+    def check_progression(self, step_code: Union[str, None] = None):
         """Method that can realtime progression of pipeline execution."""
         if self._interface_plugins is not None:
             if step_code is None:
-                param = self._interface_plugins.scheduler_param
-                queued_jobs = len(param['queue'])
-                finished_jobs = len(param['done'])
-                desc = self.installed_packages[self._stored_id] if self._stored_id is not None else self._pipeline_title
+                # display pipeline level progress bar
+                queued_jobs = len(self.queued_steps)
+                finished_jobs = len(self.finished_steps)
+                desc = self.installed_packages[self._stored_id] if self._stored_id is not None \
+                    else self._pipeline_title
+
                 self._progressbar = progressbar(total=queued_jobs + finished_jobs,
                                                 desc=desc,
                                                 initial=finished_jobs)
 
                 def workon(n_queued, n_finished):
                     while n_finished < n_queued + n_finished:
-                        delta = n_queued - len(param['queue'])
-                        if delta > 0:
-                            n_queued -= delta
-                            n_finished += delta
-                            self._progressbar.update(delta)
-                        time.sleep(0.2)
+                        running_step = self.queued_steps[0]
+                        delta = n_queued - len(self.queued_steps)
+                        if self.is_failed(running_step):
+                            # alarm if the running step is failed
+                            self._progressbar.sp(bar_style='danger')
+                            self._progressbar.write('Pipeline has been stopped.')
+                            self._stop(running_step)
+                            break
+                        else:
+                            if delta > 0:
+                                n_queued -= delta
+                                n_finished += delta
+                                self._progressbar.update(delta)
+                            time.sleep(0.2)
                     self._progressbar.close()
 
                 import threading
                 thread = threading.Thread(target=workon, args=(queued_jobs, finished_jobs))
                 thread.start()
             else:
+                # display step level progress bar
                 schd = self.schedulers[step_code]
 
                 def workon():
@@ -221,22 +267,35 @@ class Pipeline(object):
                             # wait until its ready
                             while schd._num_steps == 0:
                                 time.sleep(0.2)
-                    for step in trange(schd._num_steps, desc=f'[{step_code}]'):
-                        n_fin_workers = len(schd._succeeded_workers[step]) + len(schd._failed_workers[step])
+                    sup_bar = trange(schd._num_steps, desc=f'[{step_code}]')
+                    for step in sup_bar:
+                        n_fin_workers = len(schd._succeeded_workers[step])
                         total_workers = len(schd._queues[step])
                         sub_bar = progressbar(total=total_workers, desc=f'substep::{step}')
+                        if self.is_failed(step_code, idx=step):
+                            sub_bar.sp(bar_style='danger')
+                            break
                         while n_fin_workers < total_workers:
-                            cur_fin_workers = len(schd._succeeded_workers[step]) + len(schd._failed_workers[step])
+                            cur_fin_workers = len(schd._succeeded_workers[step])
                             delta = cur_fin_workers - n_fin_workers
                             if delta > 0:
                                 n_fin_workers += delta
                                 sub_bar.update(delta)
                             time.sleep(0.2)
+                        if self.is_failed(step_code, idx=step):
+                            # change bar color to red if any failed workers were found
+                            sub_bar.sp(bar_style='danger')
+                            sup_bar.sp(bar_style='danger')
+                            sub_bar.write(f'Step [{step_code}] has been stopped.')
+                            self._stop(step_code)
                         sub_bar.close()
 
                 import threading
                 thread = threading.Thread(target=workon)
                 thread.start()
+
+    def _stop(self, step_code):
+        self.schedulers[step_code]._background_binder._tstate_lock.release()
 
     def set_param(self, **kwargs):
         """Set parameters
@@ -426,8 +485,19 @@ class Pipeline(object):
             if len(self.interface.waiting_list) is 0:
                 pass
             else:
-                s.append("- Queue:")
-                s.append("\t{}".format(', '.join(self.interface.waiting_list)))
+                running_step = self.queued_steps[0]
+                if self.is_failed(running_step):
+                    # stop thread if any workers were failed
+                    self._stop(running_step)
+                if self.schedulers[running_step].is_alive():
+                    s.append("- Running:")
+                    s.append(f"\t{running_step}")
+                else:
+                    s.append("- Issued:")
+                    s.append(f"\t{running_step}")
+                if len(self.queued_steps) > 1:
+                    s.append("- Queue:")
+                    s.append("\t{}".format(', '.join(self.queued_steps[1:])))
             output = '\n'.join(s)
             return output
         else:

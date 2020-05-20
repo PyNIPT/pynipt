@@ -16,6 +16,7 @@ class InterfaceBase:
     def __init__(self):
         # private
         self._path = None
+        self._type = None
         pass
 
     def _parse_info_from_processor(self, processor):
@@ -617,16 +618,23 @@ class InterfaceHandler(InterfaceBase):
             self._wait_my_turn(run_order, '{}-{}'.format(label, value), method='set_var')
             method_name = 'set_var'
             self._inspect_label(label, method_name)
-            if isinstance(value, list):
-                if quote is True:
-                    value = ["'{}'".format(v) for v in value]
-            elif isinstance(value, str) or isinstance(value, int) or isinstance(value, float):
-                value = str(value)
-                if quote is True:
-                    value = '"{}"'.format(value)
+            if self._type == 'cmd':
+                # convert value to string for command-line execution
+                if isinstance(value, list):
+                    if quote is True:
+                        value = ["'{}'".format(v) for v in value]
+                elif isinstance(value, str) or isinstance(value, int) or isinstance(value, float):
+                    value = str(value)
+                    if quote is True:
+                        value = '"{}"'.format(value)
+                else:
+                    exc_msg = '[{}]-incorrect variable.'.format(self.step_code)
+                    self.logging('warn', exc_msg, method=method_name)
+            elif self._type == 'python':
+                # preserve datatype for mode=python
+                pass
             else:
-                exc_msg = '[{}]-incorrect variable.'.format(self.step_code)
-                self.logging('warn', exc_msg, method=method_name)
+                raise InvalidApproach(f'Invalid step type: {self._type}')
             self._var_set[label] = value
             self._report_status(run_order)
 
@@ -635,22 +643,28 @@ class InterfaceHandler(InterfaceBase):
         if self._step_processed is True:
             pass
         else:
-            self._wait_my_turn(run_order, '{}'.format(command), method='set_cmd')
-            self._cmd_set[len(self._cmd_set.keys())] = command
-            self._report_status(run_order)
+            if self._type != 'cmd':
+                self._wait_my_turn(run_order, '{}'.format(command), method='set_cmd')
+                self._cmd_set[len(self._cmd_set.keys())] = command
+                self._report_status(run_order)
+            else:
+                raise InvalidApproach('Use set_func instead.')
 
     def _set_func(self, run_order, func):
         if self._step_processed is True:
             pass
         else:
-            func_name = func.__code__.co_name
-            n_args = func.__code__.co_argcount
-            keywords = func.__code__.co_varnames[:n_args]
-            func_code = '{}({})'.format(func_name, ','.join(keywords))
+            if self._type == 'python':
+                func_name = func.__code__.co_name
+                n_args = func.__code__.co_argcount
+                keywords = func.__code__.co_varnames[:n_args]
+                func_code = '{}({})'.format(func_name, ','.join(keywords))
 
-            self._wait_my_turn(run_order, '{}'.format(func_code), method='set_func')
-            self._func_set[len(self._func_set.keys())] = func
-            self._report_status(run_order)
+                self._wait_my_turn(run_order, '{}'.format(func_code), method='set_func')
+                self._func_set[len(self._func_set.keys())] = func
+                self._report_status(run_order)
+            else:
+                raise InvalidApproach('Use set_cmd instead.')
 
     def _inspect_label(self, label, method_name=None):
 
@@ -824,7 +838,9 @@ class InterfaceBuilder(InterfaceHandler):
 
     Methods:
         init_step:          initiate step, required the step title and code to prevent any conflict
-                            with other step node.
+                            with other step node. with type='python',
+                            this step will run as the interface for the python function,
+                            instead of the shell command.
         is_initiated:       check if the interface wrapper is initiated, useful when you working at the interpreter.
         set_input:          method to set input location
         set_output:         method to set output direction
@@ -837,9 +853,8 @@ class InterfaceBuilder(InterfaceHandler):
                             error occurred if the output file are not found.
                             In case the output filename is different to the
                             input filename, the filename modifier must be provided.
-        run:                method to schedule execution,
-                            with mode='python', it will run as the interface for the python function,
-                            instead of the shell command.
+        run:                method to schedule execution.
+
     """
     def __init__(self, processor: Processor, n_threads: int = None, relpath: bool = False):
         """
@@ -888,7 +903,7 @@ class InterfaceBuilder(InterfaceHandler):
 
     def init_step(self, title: str, suffix: Optional[str] = None,
                   idx: Optional[int] = None, subcode: Optional[str] = None,
-                  mode='processing'):
+                  mode='processing', type='cmd'):
         """ initiate step directory with unique step code to prevent any conflict on folder naming.
         Notes:
             in case of using same title, please use suffix to distinguish with other, which useful when
@@ -901,8 +916,13 @@ class InterfaceBuilder(InterfaceHandler):
             mode:           'processing'- create step directory in working path
                             'reporting' - create step directory in result path
                             'masking'   - create step directory in mask path
+            type:           'cmd'       - use command for processing data
+                            'python'    - use python function for processing data
         """
         self.reset()
+        if type not in ['cmd', 'python']:
+            raise InvalidApproach('Invalid step type.')
+        self._type = type
         run_order = self._update_run_order()
         # add current step code to the step list
 
@@ -1125,7 +1145,7 @@ class InterfaceBuilder(InterfaceHandler):
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def run(self, mode : Optional[str] = None):
+    def run(self):
         """ schedule the execution
         Args:
             mode:           set 'python' if you use python function instead of shell command.
@@ -1135,11 +1155,11 @@ class InterfaceBuilder(InterfaceHandler):
         # link this object to the parents class
         self._procobj.running_obj[self.step_code] = self
         # add current step code to the step list
-        daemon = self.get_daemon(self._run, run_order, mode=mode)
+        daemon = self.get_daemon(self._run, run_order)
         # update daemon to monitor
         self._daemons[run_order] = daemon
 
-    def _run(self, run_order, mode=None):
+    def _run(self, run_order):
         """ hidden layer to run on daemon """
         if self._step_processed is True:
             pass
@@ -1148,10 +1168,12 @@ class InterfaceBuilder(InterfaceHandler):
             self._wait_my_turn(run_order, 'running interface command..', method='run')
             # command process start from here
             self._inspect_output()
-            if mode == 'python':
+            if self._type == 'python':
                 self._mngs = self._call_func_manager()
-            else:
+            elif self._type == 'cmd':
                 self._mngs = self._call_manager()
+            else:
+                raise InvalidApproach('Invalid step type.')
             for mng in self._mngs:
                 try:
                     mng.schedule(self._schd, label=self.step_code)
@@ -1182,7 +1204,7 @@ class InterfaceBuilder(InterfaceHandler):
                         _, job_idx = label.split('_')
                     else:
                         job_idx = 0
-                    if mode == 'python':
+                    if self._type == 'python':
                         mode_key = 'Func'
                         mode_val = self._schd.queues[int(job_idx)][j].func
                     else:
@@ -1201,7 +1223,7 @@ class InterfaceBuilder(InterfaceHandler):
                         _, job_idx = label.split('_')
                     else:
                         job_idx = 0
-                    if mode == 'python':
+                    if self._type == 'python':
                         mode_key = 'Func'
                         mode_val = self._schd.queues[int(job_idx)][j].func
                     else:
@@ -1265,7 +1287,7 @@ class InterfaceBuilder(InterfaceHandler):
         """ return input reference (only used internally) """
         return self._input_ref
 
-    def run_manually(self, args: dict, mode=None):
+    def run_manually(self, args: dict):
         """ method to run current working step interface manually,
         Args:
             args:           the key:value pairs correspond to the argument you've set for this working step
@@ -1274,7 +1296,7 @@ class InterfaceBuilder(InterfaceHandler):
         loop = True
         start = time.time()
         managers = []
-        if mode == 'python':
+        if self._type == 'python':
             while loop:
                 time.sleep(self._refresh_rate)
                 if len(self._func_set.keys()) == 0:
