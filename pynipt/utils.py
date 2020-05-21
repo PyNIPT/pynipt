@@ -1,4 +1,5 @@
 import os, re
+from shleeh.utils import *
 
 
 #%%
@@ -27,7 +28,6 @@ def intensive_mkdir(abspaths, interface=None):
             if not interface.path.exists(target_path):
                 interface.mkdir(target_path)
 #%%
-
 
 def remove_ext(filename):
     """Remove all extension as possible"""

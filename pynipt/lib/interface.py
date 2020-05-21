@@ -628,7 +628,7 @@ class InterfaceHandler(InterfaceBase):
                     if quote is True:
                         value = '"{}"'.format(value)
                 else:
-                    exc_msg = '[{}]-incorrect variable.'.format(self.step_code)
+                    exc_msg = f'[{self.step_code}] Invalid_variable: {value}'
                     self.logging('warn', exc_msg, method=method_name)
             elif self._type == 'python':
                 # preserve datatype for mode=python
@@ -900,6 +900,12 @@ class InterfaceBuilder(InterfaceHandler):
     def threads(self):
         """ return the scheduler object """
         return self._schd
+
+    def _deep_clear(self):
+        if len(self._daemons):
+            for i, thd in self._daemons.items():
+                kill_daemon(thd)
+        self._daemons = dict()
 
     def init_step(self, title: str, suffix: Optional[str] = None,
                   idx: Optional[int] = None, subcode: Optional[str] = None,
@@ -1253,10 +1259,11 @@ class InterfaceBuilder(InterfaceHandler):
         return self._procobj.processed_list
 
     def clear(self):
-        """ clear step code assigned to current working step if it scheduled to the waiting list """
+        """ remove current step_code from waiting list, and updated into processed list."""
         if self.step_code is not None:
             last_step_code = self._procobj.waiting_list[0]
             if last_step_code != self.step_code:
+                self._deep_clear()
                 self.logging('warn', '** FATAL ERROR ** step code mismatch.',
                              method='run-[{}]'.format(self.step_code))
             else:

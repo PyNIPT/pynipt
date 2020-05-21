@@ -2,9 +2,11 @@ from .bucket import Bucket
 from .plugin import PluginLoader
 from ..config import config
 from ..errors import *
+from ..utils import *
 from typing import Optional, Union
-from shleeh.utils import deprecated_warning
+# from shleeh.utils import deprecated_warning
 import time
+from copy import copy as cp
 
 try:
     from IPython import get_ipython
@@ -101,7 +103,19 @@ class Pipeline(object):
 
     def detach_package(self):
         """ Detach selected pipeline package """
-        self.selected   = None
+        # terminate all interface builders
+        for step_code, builder in self.interface._running_obj.items():
+            builder._deep_clear()
+            del self.interface._running_obj[step_code]
+
+        # detach interface
+        self._interface_plugins = None
+
+        # detach selected pipeline
+        self.selected = None
+        self._pipeobj = None
+
+        # clear placeholders
         self._pipeline_title = None
         self._stored_id = None
 
@@ -125,6 +139,7 @@ class Pipeline(object):
         """
         self._bucket.update()
         self.detach_package()
+        self._stored_id = False
         self._interface_plugins = self._plugin.get_interfaces()(self._bucket, title,
                                                                 logger=self._logger,
                                                                 n_threads=self._n_threads)
@@ -150,11 +165,9 @@ class Pipeline(object):
 
         # convert package ID to package name
         if isinstance(package_id, int):
-            self._stored_id = package_id
-            self._pipeline_title = self.installed_packages[package_id]
+            self._set_pkg(package_id)
         else:
             raise IndexError('Invalid package id')
-        self.reset(**kwargs)
 
         if self._verbose:
             print('Description about this package:\n')
@@ -167,20 +180,38 @@ class Pipeline(object):
             print("\n".join(output))
 
     def import_plugin(self, name: str, file_path: str):
-        self._pipeobj.from_file(name, file_path)
+        if self._stored_id is not None:
+            self._pipeobj.from_file(name, file_path)
+        else:
+            raise InvalidApproach('pipeline package must be running.')
 
-    def reset(self, **kwargs):
-        """ Reset pipeline instance. All items in queue will be reset. """
-        # TODO: Find a way to kill all running thread to stop processing
-        if self._pipeline_title is not None:
-            self._interface_plugins = self._plugin.get_interfaces()(self._bucket, self._pipeline_title,
-                                                                    logger=self._logger,
-                                                                    n_threads=self._n_threads)
-            if self._stored_id is not None:
-                self._pipeobj = self._plugin.get_pkgs(self._stored_id)
-            if hasattr(self._pipeobj, self._pipeline_title):
-                selected_pkg = getattr(self._pipeobj, self._pipeline_title)
-                self.selected = selected_pkg(self._interface_plugins, **kwargs)
+    def _set_pkg(self, pkg_id: int, **kwargs):
+        self._stored_id = pkg_id
+        self._pipeline_title = self.installed_packages[pkg_id]
+        self._interface_plugins = self._plugin.get_interfaces()(self._bucket, self._pipeline_title,
+                                                                logger=self._logger,
+                                                                n_threads=self._n_threads)
+        self._pipeobj = self._plugin.get_pkgs(self._stored_id)
+        if hasattr(self._pipeobj, self._pipeline_title):
+            selected_pkg = getattr(self._pipeobj, self._pipeline_title)
+            self.selected = selected_pkg(self._interface_plugins, **kwargs)
+
+    def reset(self):
+        """
+        Reset pipeline instance.
+        """
+        self._bucket.update()
+        if self._stored_id is not None:
+            if isinstance(self._stored_id, bool):
+                pkg_title = cp(self._pipeline_title)
+                self.detach_package()
+                # re-initiate scratch package
+                self.set_scratch_package(pkg_title)
+            else:
+                pkg_id = cp(self._stored_id)
+                self.detach_package()
+                # re-attach the selected package
+                self._set_pkg(pkg_id)
         else:
             pass
 
@@ -235,24 +266,25 @@ class Pipeline(object):
 
                 def workon(n_queued, n_finished):
                     while n_finished < n_queued + n_finished:
-                        running_step = self.queued_steps[0]
                         delta = n_queued - len(self.queued_steps)
-                        if self.is_failed(running_step):
-                            # alarm if the running step is failed
-                            self._progressbar.sp(bar_style='danger')
-                            self._progressbar.write('Pipeline has been stopped.')
-                            self._stop(running_step)
-                            break
-                        else:
-                            if delta > 0:
-                                n_queued -= delta
-                                n_finished += delta
-                                self._progressbar.update(delta)
-                            time.sleep(0.2)
+                        if len(self.queued_steps):
+                            running_step = self.queued_steps[0]
+                            if self.is_failed(running_step):
+                                # alarm if the running step is failed
+                                self._progressbar.sp(bar_style='danger')
+                                self._progressbar.write('Pipeline has been stopped.')
+                                self._stop(running_step)
+                                break
+                        if delta > 0:
+                            n_queued -= delta
+                            n_finished += delta
+                            self._progressbar.update(delta)
+                        time.sleep(0.2)
                     self._progressbar.close()
 
                 import threading
                 thread = threading.Thread(target=workon, args=(queued_jobs, finished_jobs))
+                thread.daemon = True
                 thread.start()
             else:
                 # display step level progress bar
@@ -292,10 +324,16 @@ class Pipeline(object):
 
                 import threading
                 thread = threading.Thread(target=workon)
+                thread.daemon = True
                 thread.start()
 
     def _stop(self, step_code):
-        self.schedulers[step_code]._background_binder._tstate_lock.release()
+        """ Stop thread for scheduler """
+        try:
+            self.interface.logging('debug', 'Pipeline is stopped.')
+            self.schedulers[step_code]._background_binder._tstate_lock.release()
+        except AttributeError:
+            self.interface.logging('debug', 'Pipeline is stopped.')
 
     def set_param(self, **kwargs):
         """Set parameters
