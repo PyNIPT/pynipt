@@ -237,17 +237,18 @@ class Pipeline(object):
         Returns:
             True if the step failed else False
         """
-        failed_workers = self.schedulers[step_code]._failed_workers
+        if step_code in self.schedulers.keys():
+            failed_workers = self.schedulers[step_code]._failed_workers
 
-        if len(failed_workers):
-            num_fw = 0
-            if idx is None:
-                for fw in failed_workers.values():
-                    num_fw += len(fw)
-            else:
-                num_fw += len(failed_workers[idx])
-            if num_fw:
-                return True
+            if len(failed_workers):
+                num_fw = 0
+                if idx is None:
+                    for fw in failed_workers.values():
+                        num_fw += len(fw)
+                else:
+                    num_fw += len(failed_workers[idx])
+                if num_fw:
+                    return True
         return False
 
     def check_progression(self, step_code: Union[str, None] = None):
