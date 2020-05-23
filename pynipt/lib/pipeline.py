@@ -532,7 +532,7 @@ class Pipeline(object):
                     s.append("- Running:")
                     s.append(f"\t{running_step}")
                 else:
-                    s.append("- Issued:")
+                    s.append("- Pending:")
                     s.append(f"\t{running_step}")
                 if len(self.queued_steps) > 1:
                     s.append("- Queue:")
