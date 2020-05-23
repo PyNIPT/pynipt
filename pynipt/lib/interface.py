@@ -707,7 +707,8 @@ class InterfaceHandler(InterfaceBase):
                              f'-Total of {len(index_for_filter)} file(s) are skipped from re-processing.'
                              'Please remove the file(s) listed above if it needs to be re-processed.',
                              method=f'{method}-[{self.step_code}]')
-                arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
+                # arg_sets = [self._input_set, self._output_set, self._var_set, self._temporary_set]
+                arg_sets = [self._input_set, self._output_set, self._temporary_set]
                 for arg_set in arg_sets:
                     for label, value in arg_set.items():
                         if isinstance(value, list):
