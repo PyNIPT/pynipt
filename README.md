@@ -5,9 +5,9 @@
 - The PyNIPT module is a pipeline framework for neuroimaging data analysis that offers a convenient, and yet powerful data processing management features under Jupyter Notebook environment. The module is designed to take input from the BIDS dataset and organize the derivates into the block of steps directories instead of using prefix or suffix to modify the filename. Therefore it preserves the original filename during the data processing while the derivates of each pipeline node organized into a single directory. 
 - The key features of this module are 
     1. Enabling to execute the command-line interface or python script without input file path specification. The selection of the set of files could be performed via selecting node block and using the regex (regular expression) pattern of the file name.
-    2. Continuity of data processing in single Jupyter notebook session. The module execute the command through background scheduler, so that the Jupyter notebook does not block during data processing.
+    2. Continuity of data processing in a single Jupyter notebook session. The module executes the command through background scheduler, so that the Jupyter notebook does not block during data processing.
     3. Providing the API to simplify the development of analysis tools and processing pipeline. The easy-to-use debugging tool also maximizes the convenience of development. 
-
+    
 - ***Dependency:***
     - pandas >= 1.0.0 
     - tqdm >= 4.40.0
