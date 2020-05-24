@@ -1,5 +1,6 @@
 import re
 import logging
+import shutil
 from collections import OrderedDict
 from .bucket import BucketBase
 from ..config import config
@@ -718,12 +719,12 @@ class ProcessorHandler(ProcessorBase):
         for step_code in self._existing_report_dir.keys():
             self.close_step(step_code, mode='reporting')
 
-    def destroy_step(self, step_code, mode='processing'):
+    def destroy_step(self, step_code: str, mode: str = 'processing'):
         """delete the step folder if folder is empty.
 
                 Args:
                     step_code (str): first three character of step dir name
-                    mode (str): ['processing', 'reporting']
+                    mode (str): value within ['processing', 'reporting', 'masking']
                 """
         if mode is 'processing':
             step_dir = self._get_step_dir(step_code)
@@ -741,15 +742,27 @@ class ProcessorHandler(ProcessorBase):
             exc_msg = f'[{mode}] is not available value for the mode.'
             self.logging('warn', exc_msg)
             raise InvalidMode(exc_msg)
+        try:
+            # Check if derived temporary dir has been generated corresponding to the target step_code.
+            temp_dir = self._get_temp_dir(step_code)
+        except KeyError:
+            temp_dir = False
 
         if self.msi.path.exists(step_path):
             if len(self.msi.listdir(step_path)) == 0:
                 self.msi.rmdir(step_path)
-                self.logging('debug', f'[{step_dir}] folder is deleted.')
+                self.logging('debug', f'[{step_dir}] folder was empty and it is deleted.')
             else:
-                import shutil
                 shutil.rmtree(step_path)
-                self.logging('debug', f'[{step_dir}] folder contained data, but now it is destroyed.')
+                self.logging('debug', f'[{step_dir}] folder contained data, but it is removed.')
+            if temp_dir:
+                if self.msi.path.exists(temp_dir):
+                    if len(self.msi.listdir(temp_dir)) == 0:
+                        self.msi.rmdir(temp_dir)
+                    else:
+                        shutil.rmtree(step_path)
+                    self.logging('debug', f'[{temp_dir}] folder is founded at temporary dir, and it is removed.')
+
         self.update()
 
     def update(self):

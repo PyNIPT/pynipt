@@ -713,6 +713,10 @@ class InterfaceHandler(InterfaceBase):
                     for label, value in arg_set.items():
                         if isinstance(value, list):
                             arg_set[label] = [v for i, v in enumerate(value) if i not in index_for_filter]
+                        elif isinstance(value, str):
+                            # the group_input case, which has only one input
+                            arg_set[label] = []
+
             else:
                 self.logging('debug', f'Passed',
                              method=f'{method}-[{self.step_code}]')

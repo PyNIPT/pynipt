@@ -2,7 +2,6 @@ import os, re
 from shleeh.utils import *
 
 
-#%%
 def intensive_mkdir(abspaths, interface=None):
     """Intensive mkdir, make all parent paths if it not exists.
     """
@@ -27,7 +26,7 @@ def intensive_mkdir(abspaths, interface=None):
             target_path = interface.path.join(target_path, subpath)
             if not interface.path.exists(target_path):
                 interface.mkdir(target_path)
-#%%
+
 
 def remove_ext(filename):
     """Remove all extension as possible"""

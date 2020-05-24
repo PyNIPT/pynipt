@@ -81,6 +81,7 @@ class Pipeline(object):
         self._interface_plugins     = None                  # place holder for interface plugin
         self._n_threads             = None                  # place holder to provide into Interface class
         self._pipeline_title        = None                  # place holder for the pipeline title
+        self._step_titles           = dict()
         self._plugin                = PluginLoader()
         self._pipeobj               = None
         self._stored_id             = None
@@ -302,7 +303,8 @@ class Pipeline(object):
                                 time.sleep(0.2)
                     sup_bar = trange(schd._num_steps, desc=f'[{step_code}]')
                     for step in sup_bar:
-                        n_fin_workers = len(schd._succeeded_workers[step])
+                        n_fin_workers = len(schd._succeeded_workers[step]) \
+                            if step in schd._succeeded_workers.keys() else 0
                         total_workers = len(schd._queues[step])
                         sub_bar = progressbar(total=total_workers, desc=f'substep::{step}')
                         if self.is_failed(step_code, idx=step):
@@ -384,11 +386,63 @@ class Pipeline(object):
     def bucket(self):
         return self._bucket
 
-    def remove(self, step_code, mode='processing'):
+    def _parse_step_titles(self):
+        itf = self.interface
+        resources = [itf._existing_step_dir, itf._existing_report_dir,
+                     itf._existing_mask_dir, itf._existing_report_dir]
+
+        for r in resources:
+            for step_code, title in r.items():
+                if step_code not in self._step_titles.keys():
+                    self._step_titles[step_code] = title
+
+    def review(self, step_code):
+        """ Review the executed step code, only the step executed or running in current python session
+        can be reviewed. If the step failed, all stdout and stderr from command execution will be printed out.
+        Args:
+            step_code: the step code you want to review
+        """
+        self._parse_step_titles()
+        step_title = self._step_titles[step_code]
+        print(f'Review step [{step_code}]: {step_title}')
+        message = 'The step does not executed.'
+        if step_code in self.managers.keys():
+            if self.managers[step_code] is not None:
+                num_substeps = len(self.managers[step_code])
+                print(f'Number of sub-steps: {num_substeps}')
+            else:
+                print(message)
+        else:
+            print(message)
+        schd = self.schedulers[step_code]
+        if schd.is_alive():
+            status = 'Running'
+            print(f'Status: {status}')
+        else:
+            if self.is_failed(step_code):
+                status = 'Failed'
+                print(f'Status: {status}')
+                failed_sub_steps = []
+                if len([schd._failed_steps]):
+                    failed_sub_steps.extend(schd._failed_steps)
+                if len([schd._incomplete_steps]):
+                    failed_sub_steps.extend(schd._incomplete_steps)
+                failed_sub_steps = list(set(failed_sub_steps))
+
+                for sub_step in failed_sub_steps:
+                    # print out all error messages for each worker
+                    self.managers[step_code][sub_step].audit()
+            else:
+                status = 'Success'
+                print(f'Status: {status}')
+
+    def remove(self, step_code, mode):
         """ Remove specified step from the file system
+        # TODO: considering to remove the mode option, but keeping inconvenience would be better for removing something.
         Args:
             step_code:  the step code you want to remove from file system
             mode:       the data class mode that the step you specified is locating.
+                        ['processing', 'reporting', 'masking']
         Raises:
             InvalidStepCode
         """
@@ -399,6 +453,7 @@ class Pipeline(object):
             self.interface.destroy_step(step_code, mode=mode)
         else:
             raise InvalidStepCode
+        self.bucket.reset()
 
     @property
     def interface(self):
@@ -423,6 +478,7 @@ class Pipeline(object):
         return {s: self.builders[s].mngs for s in steps}
 
     def get_builder(self):
+        """ get interface builder class that linked with current pipeline session """
         if self.interface is not None:
             from .interface import InterfaceBuilder
             return InterfaceBuilder(self.interface)
@@ -502,6 +558,7 @@ class Pipeline(object):
     def _summary(self):
         if self._pipeline_title is not None:
             self.interface.update()
+            self._parse_step_titles()    # update all step titles
             s = ['** List of existing steps in running package [{}]:\n'.format(self._pipeline_title)]
             if len(self.interface.executed) is 0:
                 pass
@@ -525,15 +582,19 @@ class Pipeline(object):
                 pass
             else:
                 running_step = self.queued_steps[0]
-                if self.is_failed(running_step):
-                    # stop thread if any workers were failed
-                    self._stop(running_step)
                 if self.schedulers[running_step].is_alive():
                     s.append("- Running:")
-                    s.append(f"\t{running_step}")
+                    s.append(f"\t{running_step}: {self._step_titles[running_step]}")
                 else:
-                    s.append("- Pending:")
-                    s.append(f"\t{running_step}")
+                    if self.is_failed(running_step):
+                        # if running step is failed, stop the running step and report the issue,
+                        s.append("- Issued:")
+                        # below stop command does not stop running thread immediately, need wait until the error
+                        # message shows up, or reset your notebook.
+                        self._stop(running_step)
+                    else:
+                        s.append("- Pending:")
+                    s.append(f"\t{running_step}: {self._step_titles[running_step]}")
                 if len(self.queued_steps) > 1:
                     s.append("- Queue:")
                     s.append("\t{}".format(', '.join(self.queued_steps[1:])))

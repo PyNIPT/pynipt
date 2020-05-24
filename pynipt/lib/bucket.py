@@ -1,4 +1,5 @@
 from ..errors import *
+from ..utils import *
 import os
 import re
 from collections import namedtuple
@@ -400,7 +401,7 @@ class BucketHandler(BucketBase):
             for item in input_items:
                 if self.msi.path.exists(self.msi.path.join(self.path, __dc__[idx], item)):
                     return 0  # to prevent warning when processor initiate with new label
-            warnings.warn('Inaccurate filters is used: {}\n'
+            warnings.warn('Invalid filter: {}\n'
                           '[{}] class is not filtered.'.format(input_items, __dc__[idx]))
 
         if self._check_empty(idx):
@@ -445,20 +446,7 @@ class BucketHandler(BucketBase):
     def apply_filters(self):
         """The method to create filtered dataset using stored filter information."""
         def get_filtered_dataset(dataset, params, attributes, keyword, regex=False):
-            """The method to perform dataset filtering.
-            Args:
-                dataset:
-                params:
-                attributes:
-                keyword:
-                regex:
-
-            Raises:
-                Exception:
-
-            Returns:
-
-            """
+            """The method to perform dataset filtering."""
             if keyword in params.keys():
                 filters = params[keyword]
                 if isinstance(filters, str):
@@ -606,6 +594,10 @@ class Bucket(BucketHandler):
     def is_multi_session(self):
         return self._multi_session
 
+    def reset(self):
+        for k in self._filter_params.keys():
+            self._filter_params[k] = None
+
     @property
     def summary(self):
         return str(self._summary(self._idx))
@@ -614,7 +606,7 @@ class Bucket(BucketHandler):
     def df(self):
         try:
             return self.get_df(self._idx, filtered=True).sort_values(by=['Abspath']).reset_index(drop=True)
-        except (AttributeError, ValueError):
+        except (AttributeError, ValueError, TypeError):
             return pd.DataFrame()
         except:
             raise UnexpectedError
