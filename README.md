@@ -81,14 +81,14 @@ $ pip install git+https://github.com/pynipt/pynipt
 
 ### Tutorials
 *The tutorial does not ready yet, will be provided soon*
-- Get started
+- Getting started
     - How to access the data
     - Processing node
     - Pipeline
     - Debugging
-- The plug-in
-    - Interface plugin
-    - Pipelines plugin
+- Development
+    - Interface and pipeline plugin
+    - packaging your plugin
     
 #### License
 
