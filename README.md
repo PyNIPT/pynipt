@@ -226,7 +226,7 @@ additionally copy the original data to output folder
 >>        groups = dict()
 >>        for group_id, subj_list in dict(group_a=group_a, group_b=group_b).items():
 >>            stack = []
->>            for i, img_path in enumerate(input):
+>>            for i, img_path in enumerate(subj_list):
 >>                stdout.write(f'{img_path} is loaded as group {group_id}')
 >>                img = nib.load(img_path)
 >>                if i == 0:
