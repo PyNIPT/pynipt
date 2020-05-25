@@ -158,7 +158,7 @@ The scratch package [MyPipeline] is initiated.
 >>         img = nib.load(input)
 >>         img_data = np.asarray(img.dataobj)
 >>         result_data = img_data * param
->>         stdout.write(f'Multiply image py {param}\n')
+>>         stdout.write(f'Multiply image by {param}\n')
 >>         nii = nib.Nifti1Image(result_data, affine=img._affine, header=img._header)
 >>         stdout.write(f'Save to {output}..\n')
 >>         stdout.write('Done\n')
@@ -184,8 +184,10 @@ The scratch package [MyPipeline] is initiated.
 MyPipeline 50%|████████████████                  | 1/2
 ```
 
-- To get more detail information, please check our 
-[Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples)
+- To get more detail information, please check below links
+    - [Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples)
+    - [Example plugin](https://github.com/PyNIPT/pynipt-plugins/tree/master/camri_core)
+
 
 #### Regular expression for data filtering
 - Regex patterns using in this module
