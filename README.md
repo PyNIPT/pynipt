@@ -26,6 +26,12 @@
     - v0.2.0 (5/24/2020)    - user interface for debugging
     
 ### Installation
+- from PyPI
+```js
+$ pip install pynipt
+```
+
+- from Github repository
 ```js
 $ pip install git+https://github.com/pynipt/pynipt
 ```
