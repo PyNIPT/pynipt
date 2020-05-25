@@ -60,14 +60,14 @@ Project_Root/
 │           ├── sub-02_task-rest_bold.json
 │           └── sub-02_task-rest_bold.nii.gz
 ├── Mask/
-│   ├── 02A_BrainMaskEstimate-func/
+│   ├── 02A_BrainMasks-func/
 │   │   ├── sub-01/
 │   │   │   ├── sub-01_task-rest_bold.nii.gz
 │   │   │   └── sub-01_task-rest_bold_mask.nii.gz
 │   │   └── sub-02/
 │   │       ├── sub-02_task-rest_bold.nii.gz
 │   │       └── sub-02_task-rest_bold_mask.nii.gz
-│   └── 02B_BrainMaskEstimate-anat/
+│   └── 02B_BrainMasks-anat/
 │       ├── sub-01/
 │       │   ├── sub-01_T2w.nii.gz
 │       │   └── sub-01_T2w_mask.nii.gz
@@ -75,7 +75,7 @@ Project_Root/
 │           ├── sub-02_T2w.nii.gz
 │           └── sub-02_T2w_mask.nii.gz
 ├── Processing/
-│   └── PipelinePackage/
+│   └── MyPipeline/
 │       ├── 01A_ProcessingStep1A-func/
 │       │   ├── sub-01/
 │       │   │   └── sub-01_task-rest_bold.nii.gz
@@ -87,7 +87,7 @@ Project_Root/
 │           └── sub-DRRA01M/
 │               └── sub-02_task-rest_bold.nii.gz
 ├── Results/
-│   └── UNCCH_CAMRI/
+│   └── MyPipeline/
 │       └── 030_2ndLevelStatistic-func/
 │           ├── TTest.nii.gz
 │           └── TTest_report.html
@@ -111,7 +111,74 @@ Project_Root/
 - **JupyterNotes**: to store Jupyter notebook for documenting and visualizing your overall data process and analysis.
 - **Templates**: to store anatomical template, group level brain masks, and labelled brain atlas.
 
-### Data filtering
+### Getting started
+- Start Pipeline from scratch
+```python
+>> import pynipt as pn
+>> pipe = pn.Pipeline(<ProjectRoot Path>)
+** Dataset summary
+
+Path of Dataset: /absolute/path/to/<ProjectRoot Path>
+Name of Dataset: <ProjectRoot Path>
+Selected DataClass: Data
+
+Subject(s): ['sub-01', 'sub-02']
+Datatype(s): ['anat', 'fmap', 'func']
+
+
+List of installed pipeline packages:
+>> pipe.set_scratch_package('MyPipeline')
+The scratch package [MyPipeline] is initiated.
+```
+- Execute command 'mycommand' for the all file in Datatype 'func' and output files to Processing/01A_ProcessingStep1A-func.
+```python
+>> parameter = '10'
+>> itb = pipe.get_builder()
+>> itb.init_step(title='ProcessingStep1A', suffix='func',
+>>               idx=1, subcode='A', mode='processing', type='cmd')
+>> itb.set_input(label='input', input_path='func')
+>> itb.set_var(label='param', value=parameter)
+>> itb.set_output(label='output')
+>> itb.set_cmd('mycommand -i *[input] -o *[output] -o *[param]')
+>> itb.set_output_checker('output')
+>> itb.run()
+```
+
+- Execute python function 'myfunction' for the all file in StepCode '01A' and output files to Processing/01B_ProcessingStep1B-func.
+```python
+>> def myfunction(input, output, param, stdout=None, stderr=None):
+>>     import sys
+>>     import numpy as np
+>>     import nibabel as nib
+>>     if stdout == None:
+>>         stdout = sys.stdout
+>>         stderr = sys.stderr
+>>     try:
+>>         stdout.write(f'Running MyFunction for input: {input}\n')
+>>         img = nib.load(input)
+>>         img_data = np.asarray(img.dataobj)
+>>         result_data = img_data * param
+>>         stdout.write(f'Multiply image py {param}\n')
+>>         nii = nib.Nifti1Image(result_data, affine=img._affine, header=img._header)
+>>         stdout.write(f'Save to {output}..\n')
+>>         stdout.write('Done')
+>>     except:
+>>         return 1
+>>     return 0
+>>
+>> itb = pipe.get_builder()
+>> itb.init_step(title='ProcessingStep1B', suffix='func',
+>>               idx=1, subcode='B', mode='processing', type='python')
+>> itb.set_input(label='input', input_path='func')
+>> itb.set_var(label='param', value=parameter)
+>> itb.set_output(label='output')
+>> itb.set_func(myfunction)
+>> itb.set_output_checker('output')
+>> itb.run()
+```
+
+- To get more detail information, please check our [Notebook Examples](../examples)
+
 #### Regular expression for data filtering
 - Regex patterns using in this module
     - This module use regular expression to search specific filename without extension, 
@@ -151,14 +218,6 @@ Project_Root/
 
 ### Tutorials
 *The tutorial does not ready yet, will be provided soon*
-- Getting started
-    - How to access the data
-    - Processing node
-    - Pipeline
-    - Debugging
-- Development
-    - Interface and pipeline plugin
-    - packaging your plugin
     
 #### License
 

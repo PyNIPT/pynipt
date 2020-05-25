@@ -105,9 +105,10 @@ class Pipeline(object):
     def detach_package(self):
         """ Detach selected pipeline package """
         # terminate all interface builders
-        for step_code, builder in self.interface._running_obj.items():
-            builder._deep_clear()
-            del self.interface._running_obj[step_code]
+        if self.interface is not None:
+            for step_code, builder in self.interface._running_obj.items():
+                builder._deep_clear()
+                del self.interface._running_obj[step_code]
 
         # detach interface
         self._interface_plugins = None
