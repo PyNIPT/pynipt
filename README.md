@@ -97,7 +97,7 @@ Project_Root/
 │   ├── DEBUG.log
 │   ├── STDERR.log
 │   └── STDOUT.log
-└── Template/
+└── Templates/
     └── BrainTemplate.nii.gz
 ```
 #### It is composed of 6 data components under project folder
