@@ -31,7 +31,7 @@
 $ pip install pynipt
 ```
 
-- from Github repository
+- from Github repository (nightly build)  *if you have any issues with PyPI version, please try this instead*
 ```js
 $ pip install git+https://github.com/pynipt/pynipt
 ```
