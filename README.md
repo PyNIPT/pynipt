@@ -17,7 +17,7 @@
     - shleeh >= 0.0.6
 
 - ***Compatibility:*** 
-    - Python > 3.7.5
+    - Python > 3.7.5 and <3.8
     - Brain imaging data structure (http://bids.neuroimaging.io)
     - Jupyter notebook environment (https://jupyter.org)
 
