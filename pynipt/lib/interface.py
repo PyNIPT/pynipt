@@ -340,6 +340,7 @@ class InterfaceHandler(InterfaceBase):
                 if spacer is not None:
                     self._input_set[label] = spacer.join(list_of_inputs)
                 else:
+                    # TODO: need to make this as default for self._type = 'python'
                     self._input_set[label] = [list_of_inputs]
                 self._input_spacer = spacer
             else:
