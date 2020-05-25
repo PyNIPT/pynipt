@@ -184,7 +184,8 @@ The scratch package [MyPipeline] is initiated.
 MyPipeline 50%|████████████████                  | 1/2
 ```
 
-- To get more detail information, please check our [Notebook Examples](https://github.org/pynipt/pynipt/examples)
+- To get more detail information, please check our 
+[Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples)
 
 #### Regular expression for data filtering
 - Regex patterns using in this module
