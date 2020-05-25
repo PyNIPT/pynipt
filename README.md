@@ -161,6 +161,7 @@ The scratch package [MyPipeline] is initiated.
 >>         stdout.write(f'Multiply image by {param}\n')
 >>         nii = nib.Nifti1Image(result_data, affine=img._affine, header=img._header)
 >>         stdout.write(f'Save to {output}..\n')
+>>         nii.to_filename(output)
 >>         stdout.write('Done\n')
 >>     except:
 >>         stderr.write('[ERROR] Failed!\n')
@@ -242,19 +243,19 @@ PyNIPT is licensed under the term of the GNU GENERAL PUBLIC LICENSE Version 3
 If you interest in contributing this project, please contact shlee@unc.edu.
 
 #### Citing PyNIPT
-Lee, SungHo, Ban, Woomi, & Shih, Yen-Yu Ian. (2020, May 25). PyNIPT/pynipt: PyNIPT v0.2.0 (Version 0.2.0). Zenodo. http://doi.org/10.5281/zenodo.3842170
+Lee, SungHo, Ban, Woomi, & Shih, Yen-Yu Ian. (2020, May 25). PyNIPT/pynipt: PyNIPT v0.2.1 (Version 0.2.1). Zenodo. http://doi.org/10.5281/zenodo.3842192
 
 ```js
-@software{lee_sungho_2020_3842170,
+@software{lee_sungho_2020_3842192,
   author       = {Lee, SungHo and
                   Ban, Woomi and
                   Shih, Yen-Yu Ian},
-  title        = {PyNIPT/pynipt: PyNIPT v0.2.0},
+  title        = {PyNIPT/pynipt: PyNIPT v0.2.1},
   month        = may,
   year         = 2020,
   publisher    = {Zenodo},
-  version      = {0.2.0},
-  doi          = {10.5281/zenodo.3842170},
-  url          = {https://doi.org/10.5281/zenodo.3842170}
+  version      = {0.2.1},
+  doi          = {10.5281/zenodo.3842192},
+  url          = {https://doi.org/10.5281/zenodo.3842192}
 }
 ```
