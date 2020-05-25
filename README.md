@@ -196,6 +196,13 @@ The scratch package [MyPipeline] is initiated.
 MyPipeline 50%|████████████████                  | 1/2
 ```
 
+- Access dataset '01A' using pandas DataFrame
+```python
+>> pipe.get_dset('01A').df
+...will print out the data structure...
+```
+
+
 - To get more detail information, please check below links
     - [Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples) *This link is not up-to-date, but will give you some insight how this module works*
     - [Example plugin](https://github.com/PyNIPT/pynipt-plugins/tree/master/uncch_camri)
