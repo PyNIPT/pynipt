@@ -145,7 +145,7 @@ List of installed pipeline packages:
 The scratch package [MyPipeline] is initiated.
 ```
 
-- Execute command 'mycommand' for the all file in Datatype 'func' and output files to Processing/01A_ProcessingStep1A-func.
+- Execute linux shell command 'mycommand' for the all file in Datatype 'func' and output files to Processing/01A_ProcessingStep1A-func.
 ```python
 >> itb = pipe.get_builder(n_threads=1)   # in case mycommand take huge computing resources
 >> itb.init_step(title='ProcessingStep1A', suffix='func',
@@ -158,7 +158,7 @@ The scratch package [MyPipeline] is initiated.
 >> itb.run()
 ```
 
-- Execute command 'getmask' for the first file in Datatype '01A' to generate brain mask and output to Mask/02A_BrainMasks-func.
+- Execute linux shell command 'getmask' for the first file in Datatype '01A' to generate brain mask and output to Mask/02A_BrainMasks-func.
 additionally copy the original data to output folder
 ```python
 >> itb = pipe.get_builder(n_threads=4)  # multi threasing
