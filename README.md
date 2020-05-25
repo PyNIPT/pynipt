@@ -54,7 +54,9 @@ Project_Root/
 │   │   │   └── sub-01_magnitude.nii.gz
 │   │   └── func/
 │   │       ├── sub-01_task-rest_bold.json
-│   │       └── sub-01_task-rest_bold.nii.gz
+│   │       ├── sub-01_task-rest_bold.nii.gz
+│   │       ├── sub-01_task-active_bold.json
+│   │       └── sub-01_task-active_bold.nii.gz
 │   └── sub-02/
 │       ├── anat/
 │       │   ├── sub-02_T2w.json
@@ -65,15 +67,17 @@ Project_Root/
 │       │   └── sub-02_magnitude.nii.gz
 │       └── func/
 │           ├── sub-02_task-rest_bold.json
-│           └── sub-02_task-rest_bold.nii.gz
+│           ├── sub-02_task-rest_bold.nii.gz
+│           ├── sub-02_task-active_bold.json
+│           └── sub-02_task-active_bold.nii.gz
 ├── Mask/
 │   ├── 02A_BrainMasks-func/
 │   │   ├── sub-01/
 │   │   │   ├── sub-01_task-rest_bold.nii.gz
-│   │   │   └── sub-01_task-rest_bold_mask.nii.gz
+│   │   │   └── sub-01_task-active_bold_mask.nii.gz
 │   │   └── sub-02/
 │   │       ├── sub-02_task-rest_bold.nii.gz
-│   │       └── sub-02_task-rest_bold_mask.nii.gz
+│   │       └── sub-02_task-active_bold_mask.nii.gz
 │   └── 02B_BrainMasks-anat/
 │       ├── sub-01/
 │       │   ├── sub-01_T2w.nii.gz
@@ -85,14 +89,18 @@ Project_Root/
 │   └── MyPipeline/
 │       ├── 01A_ProcessingStep1A-func/
 │       │   ├── sub-01/
-│       │   │   └── sub-01_task-rest_bold.nii.gz
+│       │   │   ├── sub-01_task-rest_bold.nii.gz
+│       │   │   └── sub-01_task-active_bold.nii.gz
 │       │   ├── sub-02/
-│       │   │   └── sub-02_task-rest_bold.nii.gz
+│       │   │   ├── sub-02_task-rest_bold.nii.gz
+│       │   │   └── sub-02_task-active_bold.nii.gz
 │       └── 01B_ProcessingStep1B-func/
-│           ├── sub-DRRA01F/
-│           │   └── sub-01_task-rest_bold.nii.gz
-│           └── sub-DRRA01M/
-│               └── sub-02_task-rest_bold.nii.gz
+│           ├── sub-01/
+│           │   ├── sub-01_task-rest_bold.nii.gz
+│           │   └── sub-01_task-active_bold.nii.gz
+│           └── sub-02/
+│               ├── sub-02_task-rest_bold.nii.gz
+│               └── sub-02_task-active_bold.nii.gz
 ├── Results/
 │   └── MyPipeline/
 │       └── 030_2ndLevelStatistic-func/
@@ -184,9 +192,56 @@ The scratch package [MyPipeline] is initiated.
 >> itb.run()
 ```
 
-- Simple example of 2nd level stats (TTest)   *unfinished work*
+- Simple example of 2nd level stats (TTest), 'rest' vs 'active'
 ```python
->> 
+>> def myttestfuncion(group_a, group_b, output, stdout=None, stderr=None):
+>>    import sys
+>>    if stdout is None:
+>>       stdout = sys.stdout
+>>    if stderr is None:
+>>        stderr = sys.stderr
+>>    
+>>    import nibabel as nib
+>>    import numpy as np
+>>    import scipy.stats as stats
+>>    affine = None
+>>    try:
+>>        groups = dict()
+>>        for group_id, subj_list in dict(group_a=group_a, group_b=group_b).items():
+>>            stack = []
+>>            for i, img_path in enumerate(input):
+>>                stdout.write(f'{img_path} is loaded as group {group_id}')
+>>                img = nib.load(img_path)
+>>                if i == 0:
+>>                    affine = img.affine
+>>                stack.append(np.asarray(img._dataobj))
+>>            groups[group_id] = np.concatenate(stack, axis=-1)
+>>            stdout.write(f'{group_id} has been stacked.')
+>>        t, p = stats.ttest_ind(groups['group_a'], groups['group_b'], axis=-1)
+>>        imgobj = np.concatenate([t[..., np.newaxis], p[..., np.newaxis]], axis=-1)
+>>        ttest_result = nib.Nifti1Image(imgobj, affine)
+>>        ttest_result.to_filename(output)
+>>        stdout.write('{} is created'.format(output))
+>>        open (f'{output}_report.html', 'w') as f:
+>>            f.write('<html>Hello world.</html>\n')
+>>    except Exception as e:
+>>        stderr.write(str(e))
+>>        return 1
+>>    return 0
+>>
+>> itb = pipe.get_builder()
+>> itb.init_step('2ndLevelStatistic', suffix='func', idx=3, subcode=0, 
+>>               mode='reporting', type='python') # for reporting, as a default, output is directory without extension
+>> itb.set_input(label='group_a', input_path='01B', group_input=True, 
+>>               filter_dict=dict(regex=r'sub_\d{2}_task-rest.*'), join_modifier=False) # if this is False, input will return 
+>>                                                                                     # 'list obj' so can run loop within python function
+>> itb.set_input(label='group_b', input_path='01B', group_input=True,
+>>               filter_dict=dict(regex=r'sub_\d{2}_task-active.*'), join_modifier=False)
+>> itb.set_output(label='output', 
+>>                modifier='TTest', ext='nii.gz') # for peers to one output
+>> itb.set_func(myttestfunc)
+>> itb.set_output_checker(label='output')  # this will check if TTest.nii.gz is generated but not html file
+>> itb.run()
 ``` 
 
 - Check progression with using progressbar

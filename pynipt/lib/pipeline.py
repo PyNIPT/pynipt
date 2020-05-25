@@ -182,6 +182,7 @@ class Pipeline(object):
             print("\n".join(output))
 
     def import_plugin(self, name: str, file_path: str):
+        # TODO: need to check if this method work or not.
         if self._stored_id is not None:
             self._pipeobj.from_file(name, file_path)
         else:
