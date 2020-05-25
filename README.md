@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/171055555.svg)](https://zenodo.org/badge/latestdoi/171055555)
 # PyNIPT (Python NeuroImage Pipeline Tool)
 #### Version: 0.2
 
@@ -165,7 +166,27 @@ Project_Root/
 PyNIPT is licensed under the term of the GNU GENERAL PUBLIC LICENSE Version 3
 
 #### Authors
-
-The main author of **PyNIT project** is SungHo Lee (shlee@unc.edu). Please join us if you want to contribute this project.
+SungHo Lee (shlee@unc.edu): primary developer
+Woomi Ban (banwoomi@unc.edu): sub-developer who tested and refined the module structure
+Yen-Yu Ian Shih (shihy@neurology.unc.edu): technical and academical advisory on this project (as well as funding)
 
 #### Contributors
+If you interest in contributing this project, please contact shlee@unc.edu.
+
+#### Citing PyNIPT
+Lee, SungHo, Ban, Woomi, & Shih, Yen-Yu Ian. (2020, May 25). PyNIPT/pynipt: PyNIPT v0.2.0 (Version 0.2.0). Zenodo. http://doi.org/10.5281/zenodo.3842170
+
+```js
+@software{lee_sungho_2020_3842170,
+  author       = {Lee, SungHo and
+                  Ban, Woomi and
+                  Shih, Yen-Yu Ian},
+  title        = {PyNIPT/pynipt: PyNIPT v0.2.0},
+  month        = may,
+  year         = 2020,
+  publisher    = {Zenodo},
+  version      = {0.2.0},
+  doi          = {10.5281/zenodo.3842170},
+  url          = {https://doi.org/10.5281/zenodo.3842170}
+}
+```
