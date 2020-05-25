@@ -144,6 +144,22 @@ List of installed pipeline packages:
 >> pipe.set_scratch_package('MyPipeline')
 The scratch package [MyPipeline] is initiated.
 ```
+
+- Execute command 'getmask' for the first file in Datatype 'func' to generate brain mask and output to Mask/02A_BrainMasks-func.
+```python
+>> itb = pipe.get_builder()
+>> itb.init_step(title='BrainMasks', suffix='func',
+>>               idx=2, subcode='A', mode='masking', type='cmd')
+>> itb.set_input(label='input', input_path='func', idx=0x,
+>>               filter_dict=filter_dict)
+>> itb.set_output(label='mask', suffix='_mask')
+>> itb.set_output(label='copy')
+>> itb.set_cmd('getmask *[input] *[mask]')
+>> itb.set_cmd('cp *[input] *[copy]')
+>> itb.set_output_checker('mask')
+>> itb.run()
+```
+
 - Execute command 'mycommand' for the all file in Datatype 'func' and output files to Processing/01A_ProcessingStep1A-func.
 ```python
 >> itb = pipe.get_builder()

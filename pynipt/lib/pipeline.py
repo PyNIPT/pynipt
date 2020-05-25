@@ -479,11 +479,14 @@ class Pipeline(object):
         steps = self.builders.keys()
         return {s: self.builders[s].mngs for s in steps}
 
-    def get_builder(self):
+    def get_builder(self, n_threads=None):
         """ get interface builder class that linked with current pipeline session """
         if self.interface is not None:
             from .interface import InterfaceBuilder
-            return InterfaceBuilder(self.interface)
+            if n_threads is not None:
+                return InterfaceBuilder(self.interface, n_threads=n_threads)
+            else:
+                return InterfaceBuilder(self.interface)
         else:
             return None
 
