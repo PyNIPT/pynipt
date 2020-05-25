@@ -231,9 +231,9 @@ MyPipeline 50%|████████████████                 
 PyNIPT is licensed under the term of the GNU GENERAL PUBLIC LICENSE Version 3
 
 #### Authors
-SungHo Lee (shlee@unc.edu): primary developer
-Woomi Ban (banwoomi@unc.edu): sub-developer who tested and refined the module structure
-Yen-Yu Ian Shih (shihy@neurology.unc.edu): technical and academical advisory on this project (as well as funding)
+- SungHo Lee (shlee@unc.edu): primary developer
+- Woomi Ban (banwoomi@unc.edu): sub-developer who tested and refined the module structure
+- Yen-Yu Ian Shih (shihy@neurology.unc.edu): technical and academical advisory on this project (as well as funding)
 
 #### Contributors
 If you interest in contributing this project, please contact shlee@unc.edu.
