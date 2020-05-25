@@ -133,12 +133,11 @@ The scratch package [MyPipeline] is initiated.
 ```
 - Execute command 'mycommand' for the all file in Datatype 'func' and output files to Processing/01A_ProcessingStep1A-func.
 ```python
->> parameter = '10'
 >> itb = pipe.get_builder()
 >> itb.init_step(title='ProcessingStep1A', suffix='func',
 >>               idx=1, subcode='A', mode='processing', type='cmd')
 >> itb.set_input(label='input', input_path='func')
->> itb.set_var(label='param', value=parameter)
+>> itb.set_var(label='param', value=10)
 >> itb.set_output(label='output')
 >> itb.set_cmd('mycommand -i *[input] -o *[output] -o *[param]')
 >> itb.set_output_checker('output')
@@ -171,8 +170,8 @@ The scratch package [MyPipeline] is initiated.
 >> itb = pipe.get_builder()
 >> itb.init_step(title='ProcessingStep1B', suffix='func',
 >>               idx=1, subcode='B', mode='processing', type='python')
->> itb.set_input(label='input', input_path='func')
->> itb.set_var(label='param', value=parameter)
+>> itb.set_input(label='input', input_path='01A')
+>> itb.set_var(label='param', value=10)
 >> itb.set_output(label='output')
 >> itb.set_func(myfunction)
 >> itb.set_output_checker('output')
