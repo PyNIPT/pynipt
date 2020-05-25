@@ -192,7 +192,7 @@ MyPipeline 50%|████████████████                 
 ```
 
 - To get more detail information, please check below links
-    - [Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples)
+    - [Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples) *This link is not up-to-date, but will give you some insight how this module works*
     - [Example plugin](https://github.com/PyNIPT/pynipt-plugins/tree/master/uncch_camri)
 
 
