@@ -161,8 +161,9 @@ The scratch package [MyPipeline] is initiated.
 >>         stdout.write(f'Multiply image py {param}\n')
 >>         nii = nib.Nifti1Image(result_data, affine=img._affine, header=img._header)
 >>         stdout.write(f'Save to {output}..\n')
->>         stdout.write('Done')
+>>         stdout.write('Done\n')
 >>     except:
+>>         stderr.write('[ERROR] Failed!\n')
 >>         return 1
 >>     return 0
 >>
