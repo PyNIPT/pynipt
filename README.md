@@ -201,7 +201,7 @@ MyPipeline 50%|████████████████                 
 >> pipe.get_dset('01A').df
 ...will print out the data structure...
 
->> file_1 = pipe.get_dset('01A')[0].Abspath
+>> file_1 = pipe.get_dset('01A')[0].Abspath  # get absolute path of first indexed file 
 ```
 
 
