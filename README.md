@@ -194,7 +194,9 @@ additionally copy the original data to output folder
 >>         nii.to_filename(output)
 >>         stdout.write('Done\n')
 >>     except:
->>         stderr.write('[ERROR] Failed!\n')
+>>         stderr.write('[ERROR] Failed.\n')
+>>         import traceback
+>>         traceback.print_exception(*sys.exc_info(), file=stderr)
 >>         return 1
 >>     return 0
 >>
@@ -212,39 +214,41 @@ additionally copy the original data to output folder
 - Simple example of 2nd level stats (TTest), 'rest' vs 'active'
 ```python
 >> def myttestfuncion(group_a, group_b, output, stdout=None, stderr=None):
->>    import sys
->>    if stdout is None:
->>       stdout = sys.stdout
->>    if stderr is None:
->>        stderr = sys.stderr
->>    
->>    import nibabel as nib
->>    import numpy as np
->>    import scipy.stats as stats
->>    affine = None
->>    try:
->>        groups = dict()
->>        for group_id, subj_list in dict(group_a=group_a, group_b=group_b).items():
->>            stack = []
->>            for i, img_path in enumerate(subj_list):
->>                stdout.write(f'{img_path} is loaded as group {group_id}')
->>                img = nib.load(img_path)
->>                if i == 0:
->>                    affine = img.affine
->>                stack.append(np.asarray(img._dataobj))
->>            groups[group_id] = np.concatenate(stack, axis=-1)
->>            stdout.write(f'{group_id} has been stacked.')
->>        t, p = stats.ttest_ind(groups['group_a'], groups['group_b'], axis=-1)
->>        imgobj = np.concatenate([t[..., np.newaxis], p[..., np.newaxis]], axis=-1)
->>        ttest_result = nib.Nifti1Image(imgobj, affine)
->>        ttest_result.to_filename(output)
->>        stdout.write('{} is created'.format(output))
->>        open (f'{output}_report.html', 'w') as f:
->>            f.write('<html>Hello world.</html>\n')
->>    except Exception as e:
->>        stderr.write(str(e))
->>        return 1
->>    return 0
+>>     import sys
+>>     if stdout is None:
+>>        stdout = sys.stdout
+>>     if stderr is None:
+>>         stderr = sys.stderr
+>>     
+>>     import nibabel as nib
+>>     import numpy as np
+>>     import scipy.stats as stats
+>>     affine = None
+>>     try:
+>>         groups = dict()
+>>         for group_id, subj_list in dict(group_a=group_a, group_b=group_b).items():
+>>             stack = []
+>>             for i, img_path in enumerate(subj_list):
+>>                 stdout.write(f'{img_path} is loaded as group {group_id}')
+>>                 img = nib.load(img_path)
+>>                 if i == 0:
+>>                     affine = img.affine
+>>                 stack.append(np.asarray(img._dataobj))
+>>             groups[group_id] = np.concatenate(stack, axis=-1)
+>>             stdout.write(f'{group_id} has been stacked.')
+>>         t, p = stats.ttest_ind(groups['group_a'], groups['group_b'], axis=-1)
+>>         imgobj = np.concatenate([t[..., np.newaxis], p[..., np.newaxis]], axis=-1)
+>>         ttest_result = nib.Nifti1Image(imgobj, affine)
+>>         ttest_result.to_filename(output)
+>>         stdout.write('{} is created'.format(output))
+>>         open (f'{output}_report.html', 'w') as f:
+>>             f.write('<html>Hello world.</html>\n')
+>>     except Exception:
+>>         stderr.write('[ERROR] Failed.\n')
+>>         import traceback
+>>         traceback.print_exception(*sys.exc_info(), file=stderr)
+>>         return 1
+>>     return 0
 >>
 >> itb = pipe.get_builder()
 >> itb.init_step('2ndLevelStatistic', suffix='func', idx=3, subcode=0, 
