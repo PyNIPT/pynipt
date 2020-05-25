@@ -283,7 +283,7 @@ MyPipeline 50%|████████████████                 
 >> file_1 = pipe.get_dset('01A')[0].Abspath  # get absolute path of first indexed file 
 ```
 
-
+- All the above procedures can be packaged as a Plug-in module to simplify the execution.
 - To get more detail information, please check below links
     - [Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples) *This link is not up-to-date, but will give you some insight how this module works*
     - [Example plugin](https://github.com/PyNIPT/pynipt-plugins/tree/master/uncch_camri)
