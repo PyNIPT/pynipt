@@ -185,6 +185,11 @@ The scratch package [MyPipeline] is initiated.
 >> itb.run()
 ```
 
+- Simple example of 2nd level stats (TTest)   *unfinished work*
+```python
+>> 
+``` 
+
 - Check progression with using progressbar
 ```python
 >> pipe.check_progression()
