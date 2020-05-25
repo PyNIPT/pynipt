@@ -30,11 +30,10 @@ $ pip install git+https://github.com/pynipt/pynipt
 ```
 
 ### Example Project Data Structure
-```python
+```js
 Project_Root/
 ├── JupyterNotes/
-│   ├── 200514_BrainPacellation.ipynb
-│   └── test.nii.gz
+│   └── fMRI_Data_Preprocessing.ipynb
 ├── Data/
 │   ├── dataset_description.json
 │   ├── README
