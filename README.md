@@ -180,7 +180,9 @@ The scratch package [MyPipeline] is initiated.
 - Check progression with using progressbar
 ```python
 >> pipe.check_progression()
+MyPipeline 50%|████████████████                  | 1/2
 ```
+
 - To get more detail information, please check our [Notebook Examples](https://github.org/pynipt/pynipt/examples)
 
 #### Regular expression for data filtering

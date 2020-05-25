@@ -8,7 +8,7 @@ from .lib.processor import Processor
 from .config import config
 from paralexe import Scheduler
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 __all__ = ['Bucket',
            'Processor',
            'InterfaceBuilder',
