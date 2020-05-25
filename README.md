@@ -216,11 +216,11 @@ MyPipeline 50%|████████████████                 
     so the file extension must be provided as separate filter key.
 - Filter key 
     - Dataclass specific keys
-        - dataset path 'Data' (idx:0): subjects, datatypes
-        - working path 'Processing' (idx:1): pipelines, steps
-        - results path 'Results' (idx:2): pipelines, reports
-        - masking path 'Mask' (idx:3): subjects, datatypes
-        - temporary    'Temp' (idx:4): pipelines, steps
+        - 'Data': dataset path  (idx:0): subjects, datatypes
+        - 'Processing': working path  (idx:1): pipelines, steps
+        - 'Results': results path  (idx:2): pipelines, reports
+        - 'Mask': masking path  (idx:3): subjects, datatypes
+        - 'Temp': temporary (idx:4): pipelines, steps
     - File specific keys
         - regex: regex pattern for filename
         - ext: file extension
