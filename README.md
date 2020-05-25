@@ -186,7 +186,7 @@ MyPipeline 50%|████████████████                 
 
 - To get more detail information, please check below links
     - [Notebook Examples](https://github.com/PyNIPT/pynipt/tree/master/examples)
-    - [Example plugin](https://github.com/PyNIPT/pynipt-plugins/tree/master/camri_core)
+    - [Example plugin](https://github.com/PyNIPT/pynipt-plugins/tree/master/uncch_camri)
 
 
 #### Regular expression for data filtering
