@@ -177,7 +177,11 @@ The scratch package [MyPipeline] is initiated.
 >> itb.run()
 ```
 
-- To get more detail information, please check our [Notebook Examples](../examples)
+- Check progression with using progressbar
+```python
+>> pipe.check_progression()
+```
+- To get more detail information, please check our [Notebook Examples](https://github.org/pynipt/pynipt/examples)
 
 #### Regular expression for data filtering
 - Regex patterns using in this module
