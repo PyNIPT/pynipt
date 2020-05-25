@@ -196,10 +196,12 @@ The scratch package [MyPipeline] is initiated.
 MyPipeline 50%|████████████████                  | 1/2
 ```
 
-- Access dataset '01A' using pandas DataFrame
+- Access a image file absolute path in dataset '01A'
 ```python
 >> pipe.get_dset('01A').df
 ...will print out the data structure...
+
+>> file_1 = pipe.get_dset('01A')[0].Abspath
 ```
 
 
