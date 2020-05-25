@@ -145,24 +145,9 @@ List of installed pipeline packages:
 The scratch package [MyPipeline] is initiated.
 ```
 
-- Execute command 'getmask' for the first file in Datatype 'func' to generate brain mask and output to Mask/02A_BrainMasks-func.
-```python
->> itb = pipe.get_builder()
->> itb.init_step(title='BrainMasks', suffix='func',
->>               idx=2, subcode='A', mode='masking', type='cmd')
->> itb.set_input(label='input', input_path='func', idx=0x,
->>               filter_dict=filter_dict)
->> itb.set_output(label='mask', suffix='_mask')
->> itb.set_output(label='copy')
->> itb.set_cmd('getmask *[input] *[mask]')
->> itb.set_cmd('cp *[input] *[copy]')
->> itb.set_output_checker('mask')
->> itb.run()
-```
-
 - Execute command 'mycommand' for the all file in Datatype 'func' and output files to Processing/01A_ProcessingStep1A-func.
 ```python
->> itb = pipe.get_builder()
+>> itb = pipe.get_builder(n_threads=1)   # in case mycommand take huge computing resources
 >> itb.init_step(title='ProcessingStep1A', suffix='func',
 >>               idx=1, subcode='A', mode='processing', type='cmd')
 >> itb.set_input(label='input', input_path='func')
@@ -170,6 +155,22 @@ The scratch package [MyPipeline] is initiated.
 >> itb.set_output(label='output')
 >> itb.set_cmd('mycommand -i *[input] -o *[output] -o *[param]')
 >> itb.set_output_checker('output')
+>> itb.run()
+```
+
+- Execute command 'getmask' for the first file in Datatype '01A' to generate brain mask and output to Mask/02A_BrainMasks-func.
+additionally copy the original data to output folder
+```python
+>> itb = pipe.get_builder(n_threads=4)  # multi threasing
+>> itb.init_step(title='BrainMasks', suffix='func',
+>>               idx=2, subcode='A', mode='masking', type='cmd')
+>> itb.set_input(label='input', input_path='01A', idx=0,
+>>               filter_dict=filter_dict)
+>> itb.set_output(label='mask', suffix='_mask')
+>> itb.set_output(label='copy')
+>> itb.set_cmd('getmask *[input] *[mask]')
+>> itb.set_cmd('cp *[input] *[copy]')
+>> itb.set_output_checker('mask')
 >> itb.run()
 ```
 
