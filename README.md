@@ -22,6 +22,7 @@
     - Jupyter notebook environment (https://jupyter.org)
 
 - ***ChangeLog:***
+    - v0.2.1 (5/24/2020)    - critical bug patch
     - v0.2.0 (5/24/2020)    - user interface for debugging
     
 ### Installation
