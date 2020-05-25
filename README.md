@@ -177,13 +177,16 @@ additionally copy the original data to output folder
 - Execute python function 'myfunction' for the all file in StepCode '01A' and output files to Processing/01B_ProcessingStep1B-func.
 ```python
 >> def myfunction(input, output, param, stdout=None, stderr=None):
+>>     ## import modules here
 >>     import sys
 >>     import numpy as np
 >>     import nibabel as nib
->>     if stdout == None:
+
+>>     if stdout == None:  # for handling output/error messages
 >>         stdout = sys.stdout
 >>         stderr = sys.stderr
 >>     try:
+>>         # put your code here
 >>         stdout.write(f'Running MyFunction for input: {input}\n')
 >>         img = nib.load(input)
 >>         img_data = np.asarray(img.dataobj)
@@ -193,7 +196,8 @@ additionally copy the original data to output folder
 >>         stdout.write(f'Save to {output}..\n')
 >>         nii.to_filename(output)
 >>         stdout.write('Done\n')
->>     except:
+>>         # until here
+>>     except:  # for handling error
 >>         stderr.write('[ERROR] Failed.\n')
 >>         import traceback
 >>         traceback.print_exception(*sys.exc_info(), file=stderr)
@@ -203,9 +207,9 @@ additionally copy the original data to output folder
 >> itb = pipe.get_builder()
 >> itb.init_step(title='ProcessingStep1B', suffix='func',
 >>               idx=1, subcode='B', mode='processing', type='python')
->> itb.set_input(label='input', input_path='01A')
->> itb.set_var(label='param', value=10)
->> itb.set_output(label='output')
+>> itb.set_input(label='input', input_path='01A')  # the data from '01A' will be assigned as 'input' argument of 'myfunction'
+>> itb.set_var(label='param', value=10) # 10 will be assigned 'param' argument of 'myfunction'
+>> itb.set_output(label='output') # no modification on filename, so output filename will be same as input
 >> itb.set_func(myfunction)
 >> itb.set_output_checker('output')
 >> itb.run()
