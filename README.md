@@ -198,7 +198,7 @@ MyPipeline 50%|████████████████                 
 
 - Access a image file absolute path in dataset '01A'
 ```python
->> pipe.get_dset('01A').df
+>> pipe.get_dset('01A').df  # get_dset method will return dataset object
 ...will print out the data structure...
 
 >> file_1 = pipe.get_dset('01A')[0].Abspath  # get absolute path of first indexed file 
@@ -214,13 +214,13 @@ MyPipeline 50%|████████████████                 
 - Regex patterns using in this module
     - This module use regular expression to search specific filename without extension, 
     so the file extension must be provided as separate filter key.
-- Filter key
+- Filter key 
     - Dataclass specific keys
-        - dataset path (idx:0): subjects, datatypes
-        - working path (idx:1): pipelines, steps
-        - results path (idx:2): pipelines, reports
-        - masking path (idx:3): subjects, datatypes
-        - temporary    (idx:4): pipelines, steps
+        - dataset path 'Data' (idx:0): subjects, datatypes
+        - working path 'Processing' (idx:1): pipelines, steps
+        - results path 'Results' (idx:2): pipelines, reports
+        - masking path 'Mask' (idx:3): subjects, datatypes
+        - temporary    'Temp' (idx:4): pipelines, steps
     - File specific keys
         - regex: regex pattern for filename
         - ext: file extension
