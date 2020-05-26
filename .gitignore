@@ -12,3 +12,7 @@ test
 test/*
 *.egg-info
 *.egg-info/*
+*.bat
+source
+source/*
+Makefile
