@@ -13,5 +13,4 @@ __all__ = ['Bucket',
            'Processor',
            'InterfaceBuilder',
            'PipelineBuilder',
-           'Scheduler',
            'Pipeline']

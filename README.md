@@ -7,7 +7,8 @@
 - The key features of this module are 
     1. Enabling to execute the command-line interface or python script without input file path specification. The selection of the set of files could be performed via selecting node block and using the regex (regular expression) pattern of the file name.
     2. Continuity of data processing in a single Jupyter notebook session. The module executes the command through background scheduler, so that the Jupyter notebook does not block during data processing.
-    3. Providing the API to simplify the development of analysis tools and processing pipeline. The easy-to-use debugging tool also maximizes the convenience of development. 
+    3. Providing simple code-based access point for any derived intermediate dataset to use as input of processing, analysis, or visualization node.
+    4. Providing the bottom-up style of pipeline development API. The easy-to-use debugging tool also maximizes the convenience of development. 
     
 - ***Dependency:***
     - pandas >= 1.0.0 

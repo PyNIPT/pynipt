@@ -1002,9 +1002,9 @@ class InterfaceBuilder(InterfaceHandler):
             only available when the mode of initiated step is 'reporting'.
             In this case, the input datasets will be collected according to the given filter_dict,
             then you can specify how to construct input string using join_modifier.
-            e.g. If you set join_modifier as dict(prefix=None, suffix='[0]', spacer=', ')
-                 then the input string will be
-                 '/path/filename_1[0], /path/filename_2[0], ...'
+
+            e.g. If you set join_modifier as dict(prefix=None, suffix='[0]', spacer=', ') then the input string will be
+            '/path/filename_1[0], /path/filename_2[0], ...'
 
         Args:
             label:          label for space holder on command template
