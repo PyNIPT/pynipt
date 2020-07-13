@@ -106,8 +106,9 @@ class Pipeline(object):
         """ Detach selected pipeline package """
         # terminate all interface builders
         if self.interface is not None:
-            for step_code, builder in self.interface._running_obj.items():
-                builder._deep_clear()
+            for step_code, builder in self.interface._running_obj.copy().items():
+                self.interface._running_obj[step_code]._deep_clear()
+                # builder._deep_clear()
                 del self.interface._running_obj[step_code]
 
         # detach interface
@@ -308,7 +309,9 @@ class Pipeline(object):
                         n_fin_workers = len(schd._succeeded_workers[step]) \
                             if step in schd._succeeded_workers.keys() else 0
                         total_workers = len(schd._queues[step])
-                        sub_bar = progressbar(total=total_workers, desc=f'substep::{step}')
+                        sub_bar = progressbar(total=total_workers,
+                                              desc=f'substep::{step}',
+                                              initial=n_fin_workers)
                         if self.is_failed(step_code, idx=step):
                             sub_bar.sp(bar_style='danger')
                             break
@@ -407,7 +410,7 @@ class Pipeline(object):
         self._parse_step_titles()
         step_title = self._step_titles[step_code]
         print(f'Review step [{step_code}]: {step_title}')
-        message = 'The step does not executed.'
+        message = 'The step is not executed yet.'
         if step_code in self.managers.keys():
             if self.managers[step_code] is not None:
                 num_substeps = len(self.managers[step_code])

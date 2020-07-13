@@ -53,3 +53,14 @@ def change_fname(filename, find, replace):
     # pattern = re.compile(r'^(.*){}(.*)$'.format(find))
     # return pattern.sub(r'\1{}\2'.format(replace), filename)
     return replace.join(filename.split(find))
+
+
+def get_list_addons():
+    p_plugin = r'^pynipt[-_]addon[-_](?P<name>.*)$'
+    list_plugin = get_installed_pkg(regex=p_plugin)
+
+    added = dict()
+    for p in list_plugin:
+        pkg_name = re.match(p_plugin, p.project_name).group('name')
+        added[pkg_name] = os.path.basename(p.module_path)
+    return added

@@ -1035,7 +1035,7 @@ class InterfaceBuilder(InterfaceHandler):
 
     def set_static_input(self, label: str, input_path: str,
                          filter_dict: Optional[dict] = None,
-                         idx: int = 0, mask: Optional[str] = False):
+                         idx: int = 0, mask: Optional[bool] = False):
         """ method to set static input for each subject. useful when only one specific file need to be
         Args:
             label:          label for space holder on command template
