@@ -197,9 +197,11 @@ class PluginLoader:
 
         for p in list_plugin:
             pkg_name = re.match(p_plugin, p.project_name).group('name')
-            mod_name = os.path.basename(p.module_path)
+            with open(os.path.join(p.egg_info, 'top_level.txt'), 'r') as f:
+                mod_name = f.readline().strip()
+            if not os.path.exists(os.path.join(p.module_path, mod_name)):
+                raise UnexpectedError('Module name does not matched.')
             module = importlib.import_module(mod_name)
-
             if not hasattr(module, 'interface') and not hasattr(module, 'pipeline'):
                 if pkg_name not in issued_pkg.keys():
                     issued_pkg[pkg_name] = 'invalid'
