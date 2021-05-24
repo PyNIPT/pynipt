@@ -60,7 +60,7 @@ class PluginParser:
                         class_parser[class_name] = dict(idx=idx, args=[], kwargs=dict(), methods=dict())
 
             if class_name is not None:
-                if self.indentation(line) == 1:  # method header level
+                if self.indentation(line) == 1:  # metrics header level
                     if p_method.match(line.strip()) and p_closed.match(line.strip()):
                         parsed_method = line.strip()
                     elif p_method.match(line.strip()) and not p_closed.match(line.strip()):

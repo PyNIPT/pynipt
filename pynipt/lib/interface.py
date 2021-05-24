@@ -41,7 +41,7 @@ class InterfaceBase:
         self._input_spacer = None
 
     def _init_attr_for_execution(self):
-        # attributes for controlling method execution
+        # attributes for controlling metrics execution
         self._step_processed = False  # True if current step listed in procobj._processed_list
         self._order_counter = 0
         self._processed_run_order = []
@@ -64,7 +64,7 @@ class InterfaceBase:
         return self._msi
 
     def logging(self, level: str, message: str, method: str = None):
-        """ The helper method to log message. If the logger is not initiated,
+        """ The helper metrics to log message. If the logger is not initiated,
         only log the message if logger is initiated.
 
         Args:
@@ -134,7 +134,7 @@ class InterfaceHandler(InterfaceBase):
         self._schd = None
 
     def _init_step(self, run_order, mode_idx):
-        """ hidden method for init_step to run on the thread """
+        """ hidden metrics for init_step to run on the thread """
         # check if the init step is not first command user was executed
         if run_order != 0:
             self.logging('warn', 'init_step must be perform first for building command interface.',
@@ -178,7 +178,7 @@ class InterfaceHandler(InterfaceBase):
 
             if num_input_set > 0:
                 if self._input_method != method:
-                    exc_msg = 'invalid input method for the assigned input(s).'
+                    exc_msg = 'invalid input metrics for the assigned input(s).'
                     self.logging('warn', exc_msg, method=method_name)
                 else:
                     if label in self._input_set.keys():
@@ -203,9 +203,15 @@ class InterfaceHandler(InterfaceBase):
             if self._input_method == 0:
                 if idx is None:
                     # point to point matching between input and output
-                    if input_path in self._bucket.params[0].datatypes:
-                        dset = self._bucket(0, datatypes=input_path, **filter_dict)
-                    else:
+                    if self._bucket.params[0] is not None:
+                        if input_path in self._bucket.params[0].datatypes:
+                            dset = self._bucket(0, datatypes=input_path, **filter_dict)
+                        else:
+                            if mask is True:
+                                dset = self._bucket(3, datatypes=input_path, **filter_dict)
+                            else:
+                                dset = self._bucket(1, pipelines=self._label, steps=input_path, **filter_dict)
+                    elif self._bucket.params[0] is None:
                         if mask is True:
                             dset = self._bucket(3, datatypes=input_path, **filter_dict)
                         else:
@@ -344,7 +350,7 @@ class InterfaceHandler(InterfaceBase):
                     self._input_set[label] = [list_of_inputs]
                 self._input_spacer = spacer
             else:
-                exc_msg = 'method selection is out of range.'
+                exc_msg = 'metrics selection is out of range.'
                 self.logging('warn', exc_msg, method=method_name)
             self._report_status(run_order)
 
@@ -359,7 +365,7 @@ class InterfaceHandler(InterfaceBase):
             method_name = 'set_static_input'
 
             if self._main_input is None:
-                exc_msg = 'no prior input set, run "set_input" method first.'
+                exc_msg = 'no prior input set, run "set_input" metrics first.'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._inspect_label(label, method_name)
@@ -374,7 +380,6 @@ class InterfaceHandler(InterfaceBase):
                             self.logging('warn', exc_msg, method=method_name)
                 else:
                     self.logging('warn', exc_msg, method=method_name)
-
             if self._input_method is not 0:
                 exc_msg = 'static_input is only allowed only for group_method=False'
                 self.logging('warn', exc_msg, method=method_name)
@@ -382,16 +387,35 @@ class InterfaceHandler(InterfaceBase):
                 self._input_set[label] = list()
                 for i, f_abspath in enumerate(self._input_set[self._main_input]):
                     subj, sess = self._input_ref[i]
-
-                    if input_path in self._bucket.params[0].datatypes:
-                        if sess is None:
-                            dset = self._bucket(0, datatypes=input_path,
-                                                subjects=subj,
-                                                **filter_dict)
+                    if self._bucket.params[0] is not None:
+                        if input_path in self._bucket.params[0].datatypes:
+                            if sess is None:
+                                dset = self._bucket(0, datatypes=input_path,
+                                                    subjects=subj,
+                                                    **filter_dict)
+                            else:
+                                dset = self._bucket(0, datatypes=input_path,
+                                                    subjects=subj, sessions=sess,
+                                                    **filter_dict)
                         else:
-                            dset = self._bucket(0, datatypes=input_path,
-                                                subjects=subj, sessions=sess,
-                                                **filter_dict)
+                            if mask is True:
+                                if sess is None:
+                                    dset = self._bucket(3, datatypes=input_path,
+                                                        subjects=subj,
+                                                        **filter_dict)
+                                else:
+                                    dset = self._bucket(3, datatypes=input_path,
+                                                        subjects=subj, sessions=sess,
+                                                        **filter_dict)
+                            else:
+                                if sess is None:
+                                    dset = self._bucket(1, pipelines=self._label, steps=input_path,
+                                                        subjects=subj,
+                                                        **filter_dict)
+                                else:
+                                    dset = self._bucket(1, pipelines=self._label, steps=input_path,
+                                                        subjects=subj, sessions=sess,
+                                                        **filter_dict)
                     else:
                         if mask is True:
                             if sess is None:
@@ -435,7 +459,7 @@ class InterfaceHandler(InterfaceBase):
             method_name = 'set_output'
             input_name = self._main_input
             if self._main_input is None:
-                exc_msg = 'no input set found, please run "set_input" method before set output.'
+                exc_msg = 'no input set found, please run "set_input" metrics before set output.'
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 self._inspect_label(label, method_name)
@@ -448,7 +472,7 @@ class InterfaceHandler(InterfaceBase):
                     elif isinstance(modifier, str):
                         if self._input_method is not 1:
                             self.logging('warn',
-                                         'single output name assignment is only available for input method=1',
+                                         'single output name assignment is only available for input metrics=1',
                                          method=method_name)
                         else:
                             fname = modifier
@@ -497,7 +521,7 @@ class InterfaceHandler(InterfaceBase):
                                              method=method_name)
                 return fname
 
-            # all possible input types, method 0 and method 1
+            # all possible input types, metrics 0 and metrics 1
             self._output_set[label] = []
             if self._input_method == 0:
                 for i, f_abspath in enumerate(self._input_set[input_name]):
@@ -581,7 +605,7 @@ class InterfaceHandler(InterfaceBase):
             input_name = self._main_input
 
             if self._main_input is None:
-                exc_msg = '[{}]-cannot find input set, run set_input method first.'.format(self.step_code)
+                exc_msg = '[{}]-cannot find input set, run set_input metrics first.'.format(self.step_code)
                 self.logging('warn', exc_msg, method=method_name)
             else:
                 if self._input_method != 0:
@@ -691,7 +715,7 @@ class InterfaceHandler(InterfaceBase):
         return [kw for kw in func.__code__.co_varnames[:n_args] if kw not in ['stdout', 'stderr']]
 
     def _inspect_output(self):
-        """This hidden method detects output files that created before
+        """This hidden metrics detects output files that created before
         """
         msi = self.msi
         method = '_inspect_output'
@@ -726,7 +750,7 @@ class InterfaceHandler(InterfaceBase):
                          method=f'{method}-[{self.step_code}]')
 
     def _inspect_run(self):
-        """This hidden method will check if the interface was run properly by checking output
+        """This hidden metrics will check if the interface was run properly by checking output
         """
         msi = self.msi
         method = '_inspect_run'
@@ -753,7 +777,7 @@ class InterfaceHandler(InterfaceBase):
             return 1
 
     def _call_manager(self):
-        """This method calls the Manager instance and set the command template with its arguments on it.
+        """This metrics calls the Manager instance and set the command template with its arguments on it.
         """
         managers = []
         if len(self._cmd_set.keys()) == 0:
@@ -848,18 +872,18 @@ class InterfaceBuilder(InterfaceHandler):
                             this step will run as the interface for the python function,
                             instead of the shell command.
         is_initiated:       check if the interface wrapper is initiated, useful when you working at the interpreter.
-        set_input:          method to set input location
-        set_output:         method to set output direction
-        set_temporary:      method to set temporary file handler for running sub-step
-        set_var:            method to set variable
-        set_cmd:            method to set shell command (cannot use with set_func)
-        set_func:           method to set python function (cannot use with set_cmd)
-        set_errterm:        method to set error message string to indicate occurrence of the error event.
-        set_output_checker: method to specify which filename to check after step execution.
+        set_input:          metrics to set input location
+        set_output:         metrics to set output direction
+        set_temporary:      metrics to set temporary file handler for running sub-step
+        set_var:            metrics to set variable
+        set_cmd:            metrics to set shell command (cannot use with set_func)
+        set_func:           metrics to set python function (cannot use with set_cmd)
+        set_errterm:        metrics to set error message string to indicate occurrence of the error event.
+        set_output_checker: metrics to specify which filename to check after step execution.
                             error occurred if the output file are not found.
                             In case the output filename is different to the
                             input filename, the filename modifier must be provided.
-        run:                method to schedule execution.
+        run:                metrics to schedule execution.
 
     """
     def __init__(self, processor: Processor, n_threads: int = None, relpath: bool = False):
@@ -884,7 +908,7 @@ class InterfaceBuilder(InterfaceHandler):
         self._schd = Scheduler(n_threads=self._n_threads)
 
     def __enter__(self):
-        """ in order to use the 'with' method """
+        """ in order to use the 'with' metrics """
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -989,7 +1013,7 @@ class InterfaceBuilder(InterfaceHandler):
     def set_input(self, label: str, input_path: str, filter_dict: Optional[dict] = None,
                   group_input: bool = False, mask: bool = False,
                   idx: Optional[int] = None, join_modifier: Optional[dict] = None):
-        """ method to set the input with filename filter, data can be collected from dataset path or working path,
+        """ metrics to set the input with filename filter, data can be collected from dataset path or working path,
         as well as masking path if mask is set to True.
         At least one input path need to be set for the interface.
 
@@ -1036,7 +1060,7 @@ class InterfaceBuilder(InterfaceHandler):
     def set_static_input(self, label: str, input_path: str,
                          filter_dict: Optional[dict] = None,
                          idx: int = 0, mask: Optional[bool] = False):
-        """ method to set static input for each subject. useful when only one specific file need to be
+        """ metrics to set static input for each subject. useful when only one specific file need to be
         Args:
             label:          label for space holder on command template
             input_path:     absolute path, step directory, datatype or step code
@@ -1055,7 +1079,7 @@ class InterfaceBuilder(InterfaceHandler):
     def set_output(self, label: str, prefix: Optional[str] = None,
                    suffix: Optional[str] = None, modifier: Optional[Union[dict, str]] = None,
                    ext: Optional[Union[str, bool]] = None):
-        """This method will set output, if no input prior to this method, it will raise error.
+        """This metrics will set output, if no input prior to this metrics, it will raise error.
         For the case of input methods 1 and 2, the output filename will be set as [subject]
         and [subject_session], respectively, and extension must be specified.
 
@@ -1065,7 +1089,7 @@ class InterfaceBuilder(InterfaceHandler):
             prefix:         output filename prefix
             suffix:         output filename suffix
             modifier:       key(find):value(replace) or file(folder)name
-                            in case the input method was set to 1,
+                            in case the input metrics was set to 1,
                             user can specify file or folder name of output
             ext:            extension if it need to be changed. If False, extension will be removed.
         """
@@ -1078,7 +1102,7 @@ class InterfaceBuilder(InterfaceHandler):
 
     @property
     def check_output(self):
-        # this method is existing for backward compatibility.
+        # this metrics is existing for backward compatibility.
         from shleeh.utils import deprecated_warning
         deprecated_warning('check_output', 'set_output_checker', future=True)
         return self.set_output_checker
@@ -1087,7 +1111,7 @@ class InterfaceBuilder(InterfaceHandler):
                            prefix: Optional[str] = None,
                            suffix: Optional[str] = None,
                            ext: Optional[str] = None):
-        """ method to generate output filter to check whether the output file has been generated,
+        """ metrics to generate output filter to check whether the output file has been generated,
         if the output file exists already, skip current step.
 
         Args:
@@ -1104,7 +1128,7 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_temporary(self, label: str, path_only: bool = False):
-        """ method to set temporary output step.
+        """ metrics to set temporary output step.
         Args:
             label:          temporary output place-holder for command template.
             path_only:      create main step path only for
@@ -1116,9 +1140,9 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_var(self, label: str, value: Any, quote: bool = False):
-        """ method to set argument variables for function or shell command execution.
+        """ metrics to set argument variables for function or shell command execution.
         Notes:
-            If no input set prior to this method, Error will be raised.
+            If no input set prior to this metrics, Error will be raised.
         Args:
             label:          name of place-holder of variable for command of function template.
             value:          value to set as variable on command template
@@ -1132,9 +1156,9 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_cmd(self, command: str):
-        """ method to set shell command, cannot use with 'set_func' method
+        """ metrics to set shell command, cannot use with 'set_func' metrics
         Notes:
-            If no input set prior to this method, Error will be raised.
+            If no input set prior to this metrics, Error will be raised.
         Args:
             command:        command template, use decorator '*[label]' to place arguments.
         """
@@ -1145,9 +1169,9 @@ class InterfaceBuilder(InterfaceHandler):
         self._daemons[run_order] = daemon
 
     def set_func(self, func: Callable[..., bool]):
-        """ method to set python function, cannot use with 'set_func' method
+        """ metrics to set python function, cannot use with 'set_func' metrics
         Notes:
-            if no input set prior to this method, Error will be raised.
+            if no input set prior to this metrics, Error will be raised.
         Args:
             func:           function template, the keyword argument on input
         """
@@ -1278,7 +1302,7 @@ class InterfaceBuilder(InterfaceHandler):
                          method='run-[{}]'.format(self.step_code))
 
     def get_inputs(self, label: str):
-        """ the method to check assigned inputs, the input label must be specified
+        """ the metrics to check assigned inputs, the input label must be specified
         Args:
             label:          input label
         """
@@ -1301,7 +1325,7 @@ class InterfaceBuilder(InterfaceHandler):
         return self._input_ref
 
     def run_manually(self, args: dict):
-        """ method to run current working step interface manually,
+        """ metrics to run current working step interface manually,
         Args:
             args:           the key:value pairs correspond to the argument you've set for this working step
             mode:           'python' if the working step interface is initiated for the python function

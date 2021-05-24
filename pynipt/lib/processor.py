@@ -126,7 +126,7 @@ class ProcessorBase(object):
         reload(logging)
 
     def prepare_package_dir(self, label=None):
-        """Internal level method to create pipeline package folder for selected dataclass"""
+        """Internal level metrics to create pipeline package folder for selected dataclass"""
 
         # Inspect if label and dataclass is set-up
         if label is not None:
@@ -154,7 +154,7 @@ class ProcessorBase(object):
             self.update_attributes(1)
 
     def logging(self, level: str, message: str):
-        """method for logging the message,
+        """metrics for logging the message,
         Args:
             level (str): 'debug', 'warn', 'stdout', or 'stderr'
             message (str): The message for logging.
@@ -174,7 +174,7 @@ class ProcessorBase(object):
                 raise InvalidLoggingLevel(level)
 
     def _init_logger(self):
-        """method for initiating logger"""
+        """metrics for initiating logger"""
         self._log_path = self.msi.path.join(self.bucket.path, 'Logs')
         if not self.msi.path.exists(self._log_path):
             self.msi.mkdir(self._log_path)
@@ -228,8 +228,8 @@ class ProcessorBase(object):
         self._logger.setLevel(logging.DEBUG)
 
     def update_attributes(self, idx):
-        """The method to update attributes of the instance
-        depends on selected dataclass. By applying this method, the subjects and sessions of the given
+        """The metrics to update attributes of the instance
+        depends on selected dataclass. By applying this metrics, the subjects and sessions of the given
         indexed dataclass can be the attribute of this class.
 
         Args:
@@ -299,7 +299,7 @@ class ProcessorBase(object):
                 setattr(self, k, self._sort_params(dataset.df[columns[i]]))
 
     def _parse_executed_subdir(self):
-        """internal method to update subdir information which contains data."""
+        """internal metrics to update subdir information which contains data."""
         base = {1: self._executed, 2: self._reported, 3: self._masked, 4: self._tmp}
         column_index = {1: 1, 2: 1, 3: 0, 4: 1}
         for i, dic in base.items():
@@ -337,7 +337,7 @@ class ProcessorBase(object):
                             dic[self._pattern.sub(r'\1', s)] = s[4:]
 
     def _parse_existing_subdir(self):
-        """internal method to update all subdir information
+        """internal metrics to update all subdir information
         that created in each dataclass folders."""
         msi = self.msi
         steps = [d for d in msi.listdir(self.path) if msi.path.isdir(msi.path.join(self.path, d))]
@@ -409,7 +409,7 @@ class ProcessorBase(object):
 
     @staticmethod
     def _sort_params(params):
-        """The internal method to remove duplicated parameters
+        """The internal metrics to remove duplicated parameters
         and return the sorted values"""
         return sorted(list((set(params))))
 
@@ -476,17 +476,28 @@ class ProcessorHandler(ProcessorBase):
             else:
                 exc_msg = 'Cannot find the datatype mapped with input_path.'
                 try:
-                    if self.msi.path.exists(input_path):
-                        # return input_path
-                        input_path = self.msi.path.basename(input_path)
-                    elif input_path in set(self.bucket.params[0].datatypes):
-                        # return self.msi.path.join(self.bucket.path, dc[0]), input_path
-                        pass
-                    elif pattern.match(input_path.upper()):
-                        # return self.msi.path.join(self.path, self._get_step_dir(input_path.upper()))
-                        input_path = self._get_step_dir(input_path.upper())
+                    if self.bucket.params[0] is not None:
+                        if self.msi.path.exists(input_path):
+                            # return input_path
+                            input_path = self.msi.path.basename(input_path)
+
+                        elif input_path in set(self.bucket.params[0].datatypes):
+                            # return self.msi.path.join(self.bucket.path, dc[0]), input_path
+                            pass
+                        elif pattern.match(input_path.upper()):
+                            # return self.msi.path.join(self.path, self._get_step_dir(input_path.upper()))
+                            input_path = self._get_step_dir(input_path.upper())
+                        else:
+                            raise UnexpectedError
                     else:
-                        raise UnexpectedError
+                        if self.msi.path.exists(input_path):
+                            # return input_path
+                            input_path = self.msi.path.basename(input_path)
+                        elif pattern.match(input_path.upper()):
+                            # return self.msi.path.join(self.path, self._get_step_dir(input_path.upper()))
+                            input_path = self._get_step_dir(input_path.upper())
+                        else:
+                            raise UnexpectedError
                 except:
                     self.logging('warn', exc_msg)
                     raise InspectionFailure(exc_msg)

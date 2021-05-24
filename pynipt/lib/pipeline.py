@@ -183,7 +183,7 @@ class Pipeline(object):
             print("\n".join(output))
 
     def import_plugin(self, name: str, file_path: str):
-        # TODO: need to check if this method work or not.
+        # TODO: need to check if this metrics work or not.
         if self._stored_id is not None:
             self._pipeobj.from_file(name, file_path)
         else:
@@ -234,7 +234,7 @@ class Pipeline(object):
             return None
 
     def is_failed(self, step_code: str, idx: Optional[Union[int, None]] = None) -> bool:
-        """ method to check the selected step is failed on processing
+        """ metrics to check the selected step is failed on processing
         Args:
             step_code: step code
             idx: index for substep (default=0)
@@ -496,7 +496,7 @@ class Pipeline(object):
     def get_dset(self, step_code: str,
                  ext: str = 'nii.gz',
                  regex: Optional[str] = None) -> (Bucket, None):
-        """ the method to access dataset in specified step
+        """ the metrics to access dataset in specified step
         Notes:
             if you specify the data type on dataset, instead of step code, it will parse the dataset
             from raw dataset folder

@@ -182,11 +182,11 @@ class BucketBase(object):
         return container, max_depth
 
     def scan(self, idx: int) -> bool:
-        """The method to scan contents in selected dataclass.
+        """The metrics to scan contents in selected dataclass.
         Notes:
-            Using 'parser' methods, this method collect the maximal depth
+            Using 'parser' methods, this metrics collect the maximal depth
             and collect all file information of the dataclass folder.
-            This method is designed to work in both remote and local buckets.
+            This metrics is designed to work in both remote and local buckets.
         Args:
             idx: the index of the dataclass.
         Returns:
@@ -263,7 +263,7 @@ class BucketBase(object):
         return True
 
     def update(self, idx: int = None) -> bool or list:
-        """The method to scan the dataclass of given index or all in case no index is given.
+        """The metrics to scan the dataclass of given index or all in case no index is given.
         Args:
             idx (int): index number for dataclass of interest.
         Returns:
@@ -321,7 +321,7 @@ class BucketHandler(BucketBase):
     def set_path(self, path):
         """Update the absolute path of the Project folder.
 
-        This method make the dataclass folders if it does not exist.
+        This metrics make the dataclass folders if it does not exist.
         Finally this will update the project structure information.
 
         Args:
@@ -351,7 +351,7 @@ class BucketHandler(BucketBase):
         return self.msi.walk(path)
 
     def get_df(self, idx, filtered=False):
-        """The method to return dataset contents with the pandas DataFrame type.
+        """The metrics to return dataset contents with the pandas DataFrame type.
 
         Args:
             idx (int): index of dataclass.
@@ -371,7 +371,7 @@ class BucketHandler(BucketBase):
                                              columns=self._column_info[idx])
 
     def _check_empty(self, idx):
-        """The method to check if the dataclass is empty or not.
+        """The metrics to check if the dataclass is empty or not.
 
         Args:
             idx (int): index of dataclass
@@ -385,11 +385,11 @@ class BucketHandler(BucketBase):
             return False
 
     def set_filters(self, idx, *args, **kwargs):
-        """This method create filtered dataset using given filter.
+        """This metrics create filtered dataset using given filter.
 
         Args:
             idx: dataclass index.
-            *args: string based filters for legacy method.
+            *args: string based filters for legacy metrics.
             **kwargs: keyword based filters.
 
         Return:
@@ -412,7 +412,7 @@ class BucketHandler(BucketBase):
             keys = self._param_keys[idx]
             avail = sum([self.params[idx]._asdict()[key] for key in keys], [])
 
-            if len(args) != 0:        # Legacy filter method
+            if len(args) != 0:        # Legacy filter metrics
                 if not set(args).issubset(avail):
                     self._filter_params[idx] = None         # reset filters
                     diff_args = list(set(args).difference(avail))
@@ -428,7 +428,7 @@ class BucketHandler(BucketBase):
                     else:
                         for key, value in kwargs.items():
                             self._filter_params[idx][key] = value
-            else:                   # New filter method
+            else:                   # New filter metrics
                 if len(kwargs) != 0:
                     filter_keys = sum([keys, self._fname_keys], [])
                     if not set(kwargs.keys()).issubset(filter_keys):
@@ -444,9 +444,9 @@ class BucketHandler(BucketBase):
         return 0
 
     def apply_filters(self):
-        """The method to create filtered dataset using stored filter information."""
+        """The metrics to create filtered dataset using stored filter information."""
         def get_filtered_dataset(dataset, params, attributes, keyword, regex=False):
-            """The method to perform dataset filtering."""
+            """The metrics to perform dataset filtering."""
             if keyword in params.keys():
                 filters = params[keyword]
                 if isinstance(filters, str):
@@ -490,13 +490,13 @@ class BucketHandler(BucketBase):
                 finfo_att = self._column_info[idx][:-2]
                 fname_att = self._column_info[idx][-2]
 
-                if 'args' in list_param_keys:  # legacy filter method
+                if 'args' in list_param_keys:  # legacy filter metrics
                     for i, att in enumerate(finfo_att):
                         results = [finfo for finfo in filtered if finfo._asdict()[att] \
                                    in filter_params['args']]
                         if len(results) != 0:
                             filtered = results
-                else:               # Updated method, use regex for all filter
+                else:               # Updated metrics, use regex for all filter
                     att_set = dict(zip(self._param_keys[idx], finfo_att))
 
                     for key, att in att_set.items():

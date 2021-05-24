@@ -278,7 +278,7 @@ MyPipeline 50%|████████████████                 
 
 - Access a image file absolute path in dataset '01A'
 ```python
->> pipe.get_dset('01A').df  # get_dset method will return dataset object
+>> pipe.get_dset('01A').df  # get_dset metrics will return dataset object
 ...will print out the data structure...
 
 >> file_1 = pipe.get_dset('01A')[0].Abspath  # get absolute path of first indexed file 
